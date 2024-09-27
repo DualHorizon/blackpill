@@ -126,7 +126,7 @@ $ make
 Launch the VM with :
 
 ```shell
-$ qemu-system-x86_64 -nographic -enable-kvm -kernel linux/vmlinux -initrd busybox/ramdisk.img -nic user,model=rtl8139
+$ make vm
 ```
 
 ## Usage

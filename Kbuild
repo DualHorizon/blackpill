@@ -1,1 +1,1 @@
-obj-m := src/test.o
+obj-m := src/blackpill.o

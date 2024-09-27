@@ -1,18 +1,18 @@
 use kernel::prelude::*;
 
 module! {
-    type: RustMinimal,
-    name: "rust_minimal",
-    author: "Rust for Linux Contributors",
-    description: "Rust minimal sample",
+    type: Blackpill,
+    name: "blackpill",
+    author: "Unknown",
+    description: "Do we really need to add a description ?",
     license: "GPL",
 }
 
-struct RustMinimal {
+struct Blackpill {
     numbers: Vec<i32>,
 }
 
-impl kernel::Module for RustMinimal {
+impl kernel::Module for Blackpill {
     fn init(_module: &'static ThisModule) -> Result<Self> {
         pr_info!("Rust minimal sample (init)\n");
         pr_info!("Am I built-in? {}\n", !cfg!(MODULE));
@@ -22,11 +22,11 @@ impl kernel::Module for RustMinimal {
         numbers.push(108, GFP_KERNEL)?;
         numbers.push(200, GFP_KERNEL)?;
 
-        Ok(RustMinimal { numbers })
+        Ok(Blackpill { numbers })
     }
 }
 
-impl Drop for RustMinimal {
+impl Drop for Blackpill {
     fn drop(&mut self) {
         pr_info!("My numbers are {:?}\n", self.numbers);
         pr_info!("Rust minimal sample (exit)\n");

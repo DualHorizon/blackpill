@@ -12,7 +12,7 @@ Cargo.lock
 
 # Out-of-tree generated files
 src/**/*[*mod*,o*]
-*[cmd,symvers,order]
+*[Mm]odule*[cmd,symvers,order]
 
 # Generated rust-analyzer file
 rust-project.json

@@ -1,0 +1,25 @@
+From 07ca6e3f9036a31a6d0658920cfd10f2626a0545 Mon Sep 17 00:00:00 2001
+From: std3 <67806187+standard3@users.noreply.github.com>
+Date: Fri, 27 Sep 2024 19:36:11 +0200
+Subject: [PATCH] fix: check-lxdialog.sh: handling ncurses
+
+---
+ scripts/kconfig/lxdialog/check-lxdialog.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/kconfig/lxdialog/check-lxdialog.sh b/scripts/kconfig/lxdialog/check-lxdialog.sh
+index 5075ebf2d..4e138366d 100755
+--- a/scripts/kconfig/lxdialog/check-lxdialog.sh
++++ b/scripts/kconfig/lxdialog/check-lxdialog.sh
+@@ -47,7 +47,7 @@ trap "rm -f $tmp" 0 1 2 3 15
+ check() {
+         $cc -x c - -o $tmp 2>/dev/null <<'EOF'
+ #include CURSES_LOC
+-main() {}
++int main() {}
+ EOF
+ 	if [ $? != 0 ]; then
+ 	    echo " *** Unable to find the ncurses libraries or the"       1>&2
+-- 
+2.46.1
+

@@ -1,0 +1,95 @@
+From: Ariel Miculas <amiculas@cisco.com>
+To: rust-for-linux@vger.kernel.org
+Cc: Ariel Miculas <amiculas@cisco.com>
+Subject: [PATCH 17/80] kernel: configs: add qemu-busybox-min.config
+Date: Fri,  9 Jun 2023 09:30:15 +0300	[thread overview]
+Message-ID: <20230609063118.24852-18-amiculas@cisco.com> (raw)
+In-Reply-To: <20230609063118.24852-1-amiculas@cisco.com>
+
+Signed-off-by: Ariel Miculas <amiculas@cisco.com>
+---
+ arch/x86/configs/qemu-busybox-min.config | 11 +++++
+ kernel/configs/qemu-busybox-min.config   | 56 ++++++++++++++++++++++++
+ 2 files changed, 67 insertions(+)
+ create mode 100644 arch/x86/configs/qemu-busybox-min.config
+ create mode 100644 kernel/configs/qemu-busybox-min.config
+
+diff --git a/arch/x86/configs/qemu-busybox-min.config b/arch/x86/configs/qemu-busybox-min.config
+new file mode 100644
+index 000000000000..9a2bf2549053
+--- /dev/null
++++ b/arch/x86/configs/qemu-busybox-min.config
+@@ -0,0 +1,11 @@
++CONFIG_64BIT=y
++CONFIG_ACPI=y
++
++CONFIG_SERIAL_8250=y
++CONFIG_SERIAL_8250_CONSOLE=y
++
++CONFIG_HYPERVISOR_GUEST=y
++CONFIG_PVH=y
++
++CONFIG_CMDLINE_BOOL=y
++CONFIG_CMDLINE="console=ttyS0 nokaslr rdinit=/sbin/init"
+diff --git a/kernel/configs/qemu-busybox-min.config b/kernel/configs/qemu-busybox-min.config
+new file mode 100644
+index 000000000000..51435e178199
+--- /dev/null
++++ b/kernel/configs/qemu-busybox-min.config
+@@ -0,0 +1,56 @@
++# This is a minimal configuration for running a busybox initramfs image with
++# networking support.
++#
++# The following command can be used create the configuration for a minimal
++# kernel image:
++#
++# make allnoconfig qemu-busybox-min.config
++#
++# The following command can be used to build the configuration for a default
++# kernel image:
++#
++# make defconfig qemu-busybox-min.config
++#
++# On x86, the following command can be used to run qemu:
++#
++# qemu-system-x86_64 -nographic -kernel vmlinux -initrd initrd.img -nic user,model=rtl8139,hostfwd=tcp::5555-:23
++#
++# On arm64, the following command can be used to run qemu:
++#
++# qemu-system-aarch64 -M virt -cpu cortex-a72 -nographic -kernel arch/arm64/boot/Image -initrd initrd.img -nic user,model=rtl8139,hostfwd=tcp::5555-:23
++
++CONFIG_SMP=y
++CONFIG_PRINTK=y
++CONFIG_PRINTK_TIME=y
++
++CONFIG_PCI=y
++
++# We use an initramfs for busybox with elf binaries in it.
++CONFIG_BLK_DEV_INITRD=y
++CONFIG_RD_GZIP=y
++CONFIG_BINFMT_ELF=y
++CONFIG_BINFMT_SCRIPT=y
++
++# This is for /dev file system.
++CONFIG_DEVTMPFS=y
++
++# Core networking (packet is for dhcp).
++CONFIG_NET=y
++CONFIG_PACKET=y
++CONFIG_INET=y
++
++# RTL8139 NIC support.
++CONFIG_NETDEVICES=y
++CONFIG_ETHERNET=y
++CONFIG_NET_VENDOR_REALTEK=y
++CONFIG_8139CP=y
++
++# To get GDB symbols and script.
++CONFIG_DEBUG_KERNEL=y
++CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT=y
++CONFIG_GDB_SCRIPTS=y
++
++# For the power-down button (triggered by qemu's `system_powerdown` command).
++CONFIG_INPUT=y
++CONFIG_INPUT_EVDEV=y
++CONFIG_INPUT_KEYBOARD=y

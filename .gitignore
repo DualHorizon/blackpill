@@ -11,7 +11,7 @@ Cargo.lock
 **/*.rs.bk
 
 # Out-of-tree generated files
-src/**/*[*mod*,o*]
+src/**/*[*mod*,o*,c*]
 *[Mm]odule*[cmd,symvers,order]
 
 # Generated rust-analyzer file

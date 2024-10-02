@@ -1,3 +1,6 @@
 [submodule "linux"]
 	path = linux
 	url = https://github.com/Rust-for-Linux/linux.git
+[submodule "busybox"]
+	path = busybox
+	url = https://github.com/mirror/busybox.git

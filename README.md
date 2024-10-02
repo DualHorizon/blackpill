@@ -21,6 +21,11 @@ Multiple steps needs to be done before compiling our rootkit. The development en
 - a custom compiled minimal kernel with Rust activated
 - a simple QEMU virtual machine accelerated by KVM
 
+Start by cloning the repository and its submodules :
+```shell
+$ git clone git@github.com:DualHorizon/blackpill.git --recursive
+```
+
 ### QEMU
 
 On an arch-based distribution :

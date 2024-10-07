@@ -5,6 +5,7 @@ use kernel::prelude::*;
 
 include! {"hypervisor/mod.rs"}
 include! {"utils/mod.rs"}
+include! {"xdp/mod.rs"}
 
 module! {
     type: Blackpill,

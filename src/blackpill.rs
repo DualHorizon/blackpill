@@ -1,8 +1,6 @@
 //!  To-do
 use kernel::prelude::*;
 
-mod hypervisor;
-
 module! {
     type: Blackpill,
     name: "blackpill",

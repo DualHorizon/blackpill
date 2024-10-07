@@ -1,5 +1,10 @@
 //!  To-do
+use core::arch::global_asm;
+use core::include;
 use kernel::prelude::*;
+
+include! {"hypervisor/mod.rs"}
+include! {"utils/mod.rs"}
 
 module! {
     type: Blackpill,
@@ -9,27 +14,19 @@ module! {
     license: "GPL",
 }
 
-struct Blackpill {
-    numbers: Vec<i32>,
-}
+struct Blackpill {}
 
 impl kernel::Module for Blackpill {
     fn init(_module: &'static ThisModule) -> Result<Self> {
         pr_info!("Rust minimal sample (init)\n");
         pr_info!("Am I built-in? {}\n", !cfg!(MODULE));
 
-        let mut numbers = Vec::new();
-        numbers.push(72, GFP_KERNEL)?;
-        numbers.push(108, GFP_KERNEL)?;
-        numbers.push(200, GFP_KERNEL)?;
-
-        Ok(Blackpill { numbers })
+        Ok(Blackpill {})
     }
 }
 
 impl Drop for Blackpill {
     fn drop(&mut self) {
-        pr_info!("My numbers are {:?}\n", self.numbers);
         pr_info!("Rust minimal sample (exit)\n");
     }
 }

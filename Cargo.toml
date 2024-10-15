@@ -1,0 +1,11 @@
+[package]
+name = "blackpill"
+authors = ["Unknown"]
+version = "0.0.1"
+edition = "2021"
+license = "GPL-3.0"
+description = "A Linux kernel rootkit in Rust using a custom made type-2 hypervisor and eBPF XDP program."
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

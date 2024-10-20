@@ -36,29 +36,31 @@ $ sudo pacman -S qemu-base qemu-desktop docker grub
 
 ### Linux kernel
 
-On an arch-based Linux distribution :
+On an arch-based Linux distribution, install Rust and other dependencies :
 
 ```shell
+$ sudo pacman -S rust rust-src rust-bindgen
 $ sudo pacman -S clang lld llvm
 ```
 
 Then we'll need Rust sources and bindgen :
 
 ```shell
-$ rustup component add rust-src
+$ rustup component add rust-src clippy rustfmt
 $ cargo install --locked bindgen-cli
 ```
 
-Make sure everything is ok by running in folder `linux/` :
+Make sure you can start compiling your kernel with Rust by running in folder `linux/` :
 
 ```shell
+$ cd blackpill
 $ pushd linux
 $ make LLVM=1 rustavailable
 Rust is available!
 $ popd
 ```
 
-Launch the first time setup task :
+Launch the first time setup task which configures and compiles the kernel :
 
 ```shell
 $ make first-time-setup

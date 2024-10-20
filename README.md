@@ -21,9 +21,9 @@ Multiple steps needs to be done before compiling our rootkit. The development en
 - a custom compiled kernel with Rust activated
 - a simple QEMU virtual machine accelerated by KVM
 
-Start by cloning the repository and its submodules :
+Start by cloning the repository and its shallow submodules :
 ```shell
-$ git clone git@github.com:DualHorizon/blackpill.git --recursive
+$ git clone git@github.com:DualHorizon/blackpill.git --recursive --depth 1
 ```
 
 ### Important dependencies

@@ -32,12 +32,12 @@
 #[macro_export(local_inner_macros)]
 macro_rules! bitfield_impl {
 (Debug for struct $name:ident([$t:ty]); $($rest:tt)*) => {
-    impl<T: AsRef<[$t]> + $crate::fmt::Debug> $crate::fmt::Debug for $name<T> {
+    impl<T: AsRef<[$t]> + core::fmt::Debug> core::fmt::Debug for $name<T> {
         bitfield_debug!{struct $name; $($rest)*}
     }
 };
 (Debug for struct $name:ident($t:ty); $($rest:tt)*) => {
-    impl $crate::fmt::Debug for $name {
+    impl core::fmt::Debug for $name {
         bitfield_debug!{struct $name; $($rest)*}
     }
 };
@@ -60,28 +60,28 @@ macro_rules! bitfield_impl {
     bitfield_impl!{@bitwise BitXor bitxor BitXorAssign bitxor_assign $name($t) ^=}
 };
 (@bitwise $bitwise:ident $func:ident $bitwise_assign:ident $func_assign:ident $name:ident([$t:ty]) $op:tt) => {
-    impl<T: AsMut<[$t]> + AsRef<[$t]>> $crate::ops::$bitwise for $name<T> {
+    impl<T: AsMut<[$t]> + AsRef<[$t]>> crate::utils::bitfield::ops::$bitwise for $name<T> {
         type Output = Self;
         fn $func(mut self, rhs: Self) -> Self {
             bitfield_impl!(@mutate self rhs $op);
             self
         }
     }
-    impl<T: AsMut<[$t]> + AsRef<[$t]>> $crate::ops::$bitwise_assign for $name<T> {
+    impl<T: AsMut<[$t]> + AsRef<[$t]>> crate::utils::bitfield::ops::$bitwise_assign for $name<T> {
         fn $func_assign(&mut self, rhs: Self) {
             bitfield_impl!(@mutate self rhs $op);
         }
     }
 };
 (@bitwise $bitwise:ident $func:ident $bitwise_assign:ident $func_assign:ident $name:ident($t:ty) $op:tt) => {
-    impl $crate::ops::$bitwise for $name {
+    impl crate::utils::bitfield::ops::$bitwise for $name {
         type Output = Self;
         fn $func(mut self, rhs: Self) -> Self {
             self.0 $op rhs.0;
             self
         }
     }
-    impl $crate::ops::$bitwise_assign for $name {
+    impl crate::utils::bitfield::ops::$bitwise_assign for $name {
         fn $func_assign(&mut self, rhs: Self) {
             self.0 $op rhs.0;
         }
@@ -249,26 +249,26 @@ macro_rules! bitfield_fields {
     #[allow(unknown_lints)]
     #[allow(eq_op)]
     $($vis)* fn $setter(&mut self, index: usize, value: $from) {
-        use $crate::BitRangeMut;
+        use crate::utils::bitfield::BitRangeMut;
         __bitfield_debug_assert!(index < $count);
         let width = $msb - $lsb + 1;
         let lsb = $lsb + index*width;
         let msb = lsb + width - 1;
-        self.set_bit_range(msb, lsb, $crate::Into::<$t>::into(value));
+        self.set_bit_range(msb, lsb, core::convert::Into::<$t>::into(value));
     }
 };
 (only setter; @field $(#[$attribute:meta])* ($($vis:tt)*) $t:ty, $mask:ident($mask_t:ty), $from:ty, $into:ty, _, $setter:ident: $msb:expr,
     $lsb:expr) => {
     $(#[$attribute])*
     $($vis)* fn $setter(&mut self, value: $from) {
-        use $crate::BitRangeMut;
-        self.set_bit_range($msb, $lsb, $crate::Into::<$t>::into(value));
+        use crate::utils::bitfield::BitRangeMut;
+        self.set_bit_range($msb, $lsb, core::convert::Into::<$t>::into(value));
     }
 };
 (only setter; @field $(#[$attribute:meta])* ($($vis:tt)*) $t:ty, $mask:ident($mask_t:ty), $from:ty, $into:ty, _, $setter:ident: $bit:expr) => {
     $(#[$attribute])*
     $($vis)* fn $setter(&mut self, value: bool) {
-        use $crate::BitMut;
+        use crate::utils::bitfield::BitMut;
         self.set_bit($bit, value);
     }
 };
@@ -279,28 +279,28 @@ macro_rules! bitfield_fields {
     #[allow(unknown_lints)]
     #[allow(eq_op)]
     $($vis)* fn $getter(&self, index: usize) -> $into {
-        use $crate::BitRange;
+        use crate::utils::bitfield::BitRange;
         __bitfield_debug_assert!(index < $count);
         let width = $msb - $lsb + 1;
         let lsb = $lsb + index*width;
         let msb = lsb + width - 1;
         let raw_value: $t = self.bit_range(msb, lsb);
-        $crate::Into::into(raw_value)
+        core::convert::Into::into(raw_value)
     }
 };
 (only getter; @field $(#[$attribute:meta])* ($($vis:tt)*) $t:ty, $mask:ident($mask_t:ty), $from:ty, $into:ty, $getter:ident, _: $msb:expr,
     $lsb:expr) => {
     $(#[$attribute])*
     $($vis)* fn $getter(&self) -> $into {
-        use $crate::BitRange;
+        use crate::utils::bitfield::BitRange;
         let raw_value: $t = self.bit_range($msb, $lsb);
-        $crate::Into::into(raw_value)
+        core::convert::Into::into(raw_value)
     }
 };
 (only getter; @field $(#[$attribute:meta])* ($($vis:tt)*) $t:ty, $mask:ident($mask_t:ty), $from:ty, $into:ty, $getter:ident, _: $bit:expr) => {
     $(#[$attribute])*
     $($vis)* fn $getter(&self) -> bool {
-        use $crate::Bit;
+        use crate::utils::bitfield::Bit;
         self.bit($bit)
     }
 };
@@ -316,6 +316,7 @@ macro_rules! bitfield_fields {
 (only $only:tt; $default_ty:ty; pub $($rest:tt)*) => {
     bitfield_fields!{only $only; $default_ty; () pub $($rest)*}
 };
+
 (only $only:tt; $default_ty:ty; #[$attribute:meta] $($rest:tt)*) => {
     bitfield_fields!{only $only; $default_ty; (#[$attribute]) $($rest)*}
 };
@@ -517,7 +518,7 @@ macro_rules! bitfield_fields {
 #[macro_export(local_inner_macros)]
 macro_rules! bitfield_debug {
 (struct $name:ident; $($rest:tt)*) => {
-    fn fmt(&self, f: &mut $crate::fmt::Formatter) -> $crate::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut debug_struct = f.debug_struct(__bitfield_stringify!($name));
         debug_struct.field(".0", &self.0);
         bitfield_debug!{debug_struct, self, $($rest)*}
@@ -649,11 +650,11 @@ $_getter:ident, $setter:ident: $($_expr:expr),*; $($rest:tt)* ) => {
 #[macro_export(local_inner_macros)]
 macro_rules! bitfield_bitrange {
 (@impl_bitrange_slice $name:ident, $slice_ty:ty, $bitrange_ty:ty) => {
-    impl<T: AsRef<[$slice_ty]>> $crate::BitRange<$bitrange_ty>
+    impl<T: AsRef<[$slice_ty]>> crate::utils::bitfield::BitRange<$bitrange_ty>
         for $name<T> {
             fn bit_range(&self, msb: usize, lsb: usize) -> $bitrange_ty {
-                let bit_len = $crate::size_of::<$slice_ty>()*8;
-                let value_bit_len = $crate::size_of::<$bitrange_ty>()*8;
+                let bit_len = crate::utils::bitfield::size_of::<$slice_ty>()*8;
+                let value_bit_len = crate::utils::bitfield::size_of::<$bitrange_ty>()*8;
                 let mut value = 0;
                 for i in (lsb..=msb).rev() {
                     value <<= 1;
@@ -662,11 +663,11 @@ macro_rules! bitfield_bitrange {
                 value << (value_bit_len - (msb - lsb + 1)) >> (value_bit_len - (msb - lsb + 1))
             }
     }
-    impl<T: AsMut<[$slice_ty]>> $crate::BitRangeMut<$bitrange_ty>
+    impl<T: AsMut<[$slice_ty]>> crate::utils::bitfield::BitRangeMut<$bitrange_ty>
         for $name<T> {
 
             fn set_bit_range(&mut self, msb: usize, lsb: usize, value: $bitrange_ty) {
-                let bit_len = $crate::size_of::<$slice_ty>()*8;
+                let bit_len = crate::utils::bitfield::size_of::<$slice_ty>()*8;
                 let mut value = value;
                 for i in lsb..=msb {
                     self.0.as_mut()[i/bit_len] &= !(1 << (i%bit_len));
@@ -677,11 +678,11 @@ macro_rules! bitfield_bitrange {
         }
 };
 (@impl_bitrange_slice_msb0 $name:ident, $slice_ty:ty, $bitrange_ty:ty) => {
-    impl<T: AsRef<[$slice_ty]>> $crate::BitRange<$bitrange_ty>
+    impl<T: AsRef<[$slice_ty]>> crate::utils::bitfield::BitRange<$bitrange_ty>
         for $name<T> {
         fn bit_range(&self, msb: usize, lsb: usize) -> $bitrange_ty {
-            let bit_len = $crate::size_of::<$slice_ty>()*8;
-            let value_bit_len = $crate::size_of::<$bitrange_ty>()*8;
+            let bit_len = crate::utils::bitfield::size_of::<$slice_ty>()*8;
+            let value_bit_len = crate::utils::bitfield::size_of::<$bitrange_ty>()*8;
             let mut value = 0;
             for i in lsb..=msb {
                 value <<= 1;
@@ -691,10 +692,10 @@ macro_rules! bitfield_bitrange {
             value << (value_bit_len - (msb - lsb + 1)) >> (value_bit_len - (msb - lsb + 1))
         }
     }
-    impl<T: AsMut<[$slice_ty]>> $crate::BitRangeMut<$bitrange_ty>
+    impl<T: AsMut<[$slice_ty]>> crate::utils::bitfield::BitRangeMut<$bitrange_ty>
         for $name<T> {
         fn set_bit_range(&mut self, msb: usize, lsb: usize, value: $bitrange_ty) {
-            let bit_len = $crate::size_of::<$slice_ty>()*8;
+            let bit_len = crate::utils::bitfield::size_of::<$slice_ty>()*8;
             let mut value = value;
             for i in (lsb..=msb).rev() {
                 self.0.as_mut()[i/bit_len] &= !(1 << (bit_len - i%bit_len - 1));
@@ -730,12 +731,12 @@ macro_rules! bitfield_bitrange {
     bitfield_bitrange!(@impl_bitrange_slice_msb0 $name, $t, i128);
 };
 (struct $name:ident($t:ty)) => {
-    impl<T> $crate::BitRange<T> for $name where $t: $crate::BitRange<T> {
+    impl<T> crate::utils::bitfield::BitRange<T> for $name where $t: crate::utils::bitfield::BitRange<T> {
         fn bit_range(&self, msb: usize, lsb: usize) -> T {
             self.0.bit_range(msb, lsb)
         }
     }
-    impl<T> $crate::BitRangeMut<T> for $name where $t: $crate::BitRangeMut<T> {
+    impl<T> crate::utils::bitfield::BitRangeMut<T> for $name where $t: crate::utils::bitfield::BitRangeMut<T> {
         fn set_bit_range(&mut self, msb: usize, lsb: usize, value: T) {
             self.0.set_bit_range(msb, lsb, value);
         }
@@ -781,7 +782,7 @@ macro_rules! bitfield_bitrange {
 /// or with a custom `BitRange` and `BitRangeMut` implementation :
 /// ```rust
 /// # #[macro_use] extern crate bitfield;
-/// # use bitfield::{BitRange, BitRangeMut};
+/// # use crate::utils::bitfield::{BitRange, BitRangeMut};
 /// # fn main() {}
 /// bitfield!{
 ///   pub struct BitField1(u16);
@@ -867,15 +868,6 @@ macro_rules! bitfield {
     bitfield!{$(#[$attribute])* $vis struct $name($t); no default BitRange; $($rest)*}
 };
 }
-
-#[doc(hidden)]
-pub(crate) use core::convert::Into;
-#[doc(hidden)]
-pub(crate) use core::fmt;
-#[doc(hidden)]
-pub(crate) use core::mem::size_of;
-#[doc(hidden)]
-pub(crate) use core::ops;
 
 /// A trait to get ranges of bits.
 pub(crate) trait BitRange<T> {

@@ -11,16 +11,16 @@
 //! otherwise stated.
 
 use super::{
-    get_segment_descriptor_value, get_segment_limit, GuestRegisters,
-    NestedPagingStructureEntryFlags, NestedPagingStructureEntryType, VmExitReason,
+    get_segment_descriptor_value, GuestRegisters, NestedPagingStructureEntryFlags,
+    NestedPagingStructureEntryType, VmExitReason,
 };
 use crate::{
     hypervisor::hardware_vt::{
         self, ExceptionQualification, GuestException, NestedPageFaultQualification,
     },
-    utils::x86::{current::paging::BASE_PAGE_SHIFT, irq, rdmsr, wrmsr},
+    utils::x86::{irq, msr, rdmsr, wrmsr},
+    KBox, GFP_KERNEL,
 };
-use alloc::boxed::Box;
 use core::{
     arch::global_asm,
     ptr::{addr_of, addr_of_mut},
@@ -29,12 +29,30 @@ use core::{
 /// SVM-specific data to represent a guest.
 // #[derive(derivative::Derivative)]
 // #[derivative(Debug, Default)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct Svm {
-    vmcb: Box<Vmcb>,
+    vmcb: KBox<Vmcb>,
     // #[derivative(Debug = "ignore")]
-    host_state: Box<HostStateArea>,
+    host_state: KBox<HostStateArea>,
     registers: GuestRegisters,
+}
+
+impl Default for Svm {
+    fn default() -> Self {
+        // Create zeroed instances first
+        let vmcb = Vmcb::default();
+        let host_state = HostStateArea::default();
+
+        // Then create KBoxes with GFP_KERNEL flags
+        let vmcb = KBox::<Vmcb>::new(vmcb, GFP_KERNEL).unwrap(); // need to handle errors properly here
+        let host_state = KBox::<HostStateArea>::new(host_state, GFP_KERNEL).unwrap(); // need to handle errors properly here
+
+        Self {
+            vmcb,
+            host_state,
+            registers: GuestRegisters::default(),
+        }
+    }
 }
 
 impl hardware_vt::HardwareVt for Svm {
@@ -44,7 +62,7 @@ impl hardware_vt::HardwareVt for Svm {
 
         // Enable SVM. We assume the processor is compatible with this.
         // See: 15.4 Enabling SVM
-        wrmsr(x86::msr::IA32_EFER, rdmsr(x86::msr::IA32_EFER) | EFER_SVME);
+        wrmsr(msr::IA32_EFER, rdmsr(msr::IA32_EFER) | EFER_SVME);
     }
 
     /// Configures SVM. We intercept #BP, #UD, #PF, external interrupt, the
@@ -209,8 +227,11 @@ impl hardware_vt::HardwareVt for Svm {
 
 impl Svm {
     pub(crate) fn new() -> Self {
-        let vmcb = unsafe { Box::<Vmcb>::new_zeroed().assume_init() };
-        let host_state = unsafe { Box::<HostStateArea>::new_zeroed().assume_init() };
+        let vmcb = Vmcb::default();
+        let host_state = HostStateArea::default();
+
+        let vmcb = KBox::<Vmcb>::new(vmcb, GFP_KERNEL).unwrap(); // need to handle errors properly here, also maybe KBox isn't the right choice here, idk
+        let host_state = KBox::<HostStateArea>::new(host_state, GFP_KERNEL).unwrap(); // need to handle errors properly here, also maybe KBox isn't the right choice here, idk
         Self {
             vmcb,
             host_state,
@@ -237,7 +258,7 @@ const _: () = assert!(size_of::<Vmcb>() == 0x1000);
 /// See: Table B-1. VMCB Layout, Control Area
 // #[derive(derivative::Derivative)]
 // #[derivative(Debug, Default)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[repr(C)]
 struct ControlArea {
     intercept_cr_read: u16,   // +0x000
@@ -285,6 +306,54 @@ struct ControlArea {
     _padding4: [u8; 0x3e0 - 0x110], // +0x110
     reserved_for_host: [u8; 0x20],  // +0x3e0
 }
+// Those implems are kind of ugly, but since the Default rust derive macro can't handle arrays larger than 32 elements, we need to implement it ourselves.
+impl Default for ControlArea {
+    fn default() -> Self {
+        Self {
+            intercept_cr_read: 0,
+            intercept_cr_write: 0,
+            intercept_dr_read: 0,
+            intercept_dr_write: 0,
+            intercept_exception: 0,
+            intercept_misc1: 0,
+            intercept_misc2: 0,
+            intercept_misc3: 0,
+            _padding1: [0; 0x03c - 0x018],
+            pause_filter_threshold: 0,
+            pause_filter_count: 0,
+            iopm_base_pa: 0,
+            msrpm_base_pa: 0,
+            tsc_offset: 0,
+            guest_asid: 0,
+            tlb_control: 0,
+            vintr: 0,
+            interrupt_shadow: 0,
+            exit_code: 0,
+            exit_info1: 0,
+            exit_info2: 0,
+            exit_int_info: 0,
+            np_enable: 0,
+            avic_apic_bar: 0,
+            guest_pa_pf_ghcb: 0,
+            event_inj: 0,
+            ncr3: 0,
+            lbr_virtualization_enable: 0,
+            vmcb_clean: 0,
+            nrip: 0,
+            num_of_bytes_fetched: 0,
+            guest_instruction_bytes: [0; 15],
+            avic_apic_backing_page_pointer: 0,
+            _padding2: 0,
+            avic_logical_table_pointer: 0,
+            avic_physical_table_pointer: 0,
+            _padding3: 0,
+            vmcb_save_state_pointer: 0,
+            _padding4: [0; 0x3e0 - 0x110],
+            reserved_for_host: [0; 0x20],
+        }
+    }
+}
+
 const _: () = assert!(size_of::<ControlArea>() == 0x400);
 
 /// The ares to specify and read guest register values.
@@ -292,7 +361,7 @@ const _: () = assert!(size_of::<ControlArea>() == 0x400);
 /// See: Table B-2. VMCB Layout, State Save Area
 // #[derive(derivative::Derivative)]
 // #[derivative(Debug, Default)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[repr(C)]
 struct StateSaveArea {
     es_selector: u16,   // +0x000
@@ -378,6 +447,91 @@ struct StateSaveArea {
     _padding6: [u8; 0x2df - 0x298], // +0x298
     spec_ctl: u64,                  // +0x2e0
 }
+
+// Those implems are kind of ugly, but since the Default rust derive macro can't handle arrays larger than 32 elements, we need to implement it ourselves.
+impl Default for StateSaveArea {
+    fn default() -> Self {
+        Self {
+            es_selector: 0,
+            es_attrib: 0,
+            es_limit: 0,
+            es_base: 0,
+            cs_selector: 0,
+            cs_attrib: 0,
+            cs_limit: 0,
+            cs_base: 0,
+            ss_selector: 0,
+            ss_attrib: 0,
+            ss_limit: 0,
+            ss_base: 0,
+            ds_selector: 0,
+            ds_attrib: 0,
+            ds_limit: 0,
+            ds_base: 0,
+            fs_selector: 0,
+            fs_attrib: 0,
+            fs_limit: 0,
+            fs_base: 0,
+            gs_selector: 0,
+            gs_attrib: 0,
+            gs_limit: 0,
+            gs_base: 0,
+            gdtr_selector: 0,
+            gdtr_attrib: 0,
+            gdtr_limit: 0,
+            gdtr_base: 0,
+            ldtr_selector: 0,
+            ldtr_attrib: 0,
+            ldtr_limit: 0,
+            ldtr_base: 0,
+            idtr_selector: 0,
+            idtr_attrib: 0,
+            idtr_limit: 0,
+            idtr_base: 0,
+            tr_selector: 0,
+            tr_attrib: 0,
+            tr_limit: 0,
+            tr_base: 0,
+            _padding1: [0; 0x0cb - 0x0a0],
+            cpl: 0,
+            _padding2: 0,
+            efer: 0,
+            _padding3: [0; 0x148 - 0x0d8],
+            cr4: 0,
+            cr3: 0,
+            cr0: 0,
+            dr7: 0,
+            dr6: 0,
+            rflags: 0,
+            rip: 0,
+            _padding4: [0; 0x1d8 - 0x180],
+            rsp: 0,
+            s_cet: 0,
+            ssp: 0,
+            isst_addr: 0,
+            rax: 0,
+            star: 0,
+            lstar: 0,
+            cstar: 0,
+            sf_mask: 0,
+            kernel_gs_base: 0,
+            sysenter_cs: 0,
+            sysenter_esp: 0,
+            sysenter_eip: 0,
+            cr2: 0,
+            _padding5: [0; 0x268 - 0x248],
+            gpat: 0,
+            dbg_ctl: 0,
+            br_from: 0,
+            br_to: 0,
+            last_excep_from: 0,
+            last_excep_to: 0,
+            _padding6: [0; 0x2df - 0x298],
+            spec_ctl: 0,
+        }
+    }
+}
+
 const _: () = assert!(size_of::<StateSaveArea>() == 0x2e8);
 
 /// 4KB block of memory where the host state is saved to on VMRUN and loaded
@@ -385,7 +539,7 @@ const _: () = assert!(size_of::<StateSaveArea>() == 0x2e8);
 ///
 /// See: 15.30.4 VM_HSAVE_PA MSR (C001_0117h)
 // doc_markdown: clippy confused with "VM_HSAVE_PA"
-#[allow(clippy::doc_markdown)]
+#[derive(Debug)]
 #[repr(C, align(4096))]
 struct HostStateArea([u8; 0x1000]);
 const _: () = assert!(size_of::<HostStateArea>() == 0x1000);

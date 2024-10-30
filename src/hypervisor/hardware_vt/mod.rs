@@ -8,6 +8,7 @@ use crate::bitfield;
 use crate::utils::x86::{
     current::paging::{BASE_PAGE_SHIFT, PAGE_SIZE_ENTRIES},
     irq,
+    segmentation::SegmentSelector,
 };
 use core::fmt;
 
@@ -200,7 +201,7 @@ impl NestedPagingStructureEntry {
 /// Returns the segment descriptor casted as a 64bit integer for the given
 /// selector.
 fn get_segment_descriptor_value(table_base: u64, selector: u16) -> u64 {
-    let sel = x86::segmentation::SegmentSelector::from_raw(selector);
+    let sel = SegmentSelector::from_raw(selector);
     let descriptor_addr = table_base + u64::from(sel.index() * 8);
     let ptr = descriptor_addr as *const u64;
     unsafe { *ptr }
@@ -208,8 +209,8 @@ fn get_segment_descriptor_value(table_base: u64, selector: u16) -> u64 {
 
 /// Returns the limit of the given segment.
 fn get_segment_limit(table_base: u64, selector: u16) -> u32 {
-    let sel = x86::segmentation::SegmentSelector::from_raw(selector);
-    if sel.index() == 0 && (sel.bits() >> 2) == 0 {
+    let sel = SegmentSelector::from_raw(selector);
+    if sel.index() == 0 && (sel.0 >> 2) == 0 {
         return 0; // unusable
     }
     let descriptor_value = get_segment_descriptor_value(table_base, selector);

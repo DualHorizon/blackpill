@@ -1,6 +1,7 @@
 //! The module containing vendor agnostic representation of HW VT
 //! (hardware-assisted virtualization technology) related definitions.
-
+#![allow(dead_code)]
+#![allow(unreachable_pub)]
 pub(crate) mod svm;
 pub(crate) mod vmx;
 
@@ -202,7 +203,7 @@ impl NestedPagingStructureEntry {
 /// selector.
 fn get_segment_descriptor_value(table_base: u64, selector: u16) -> u64 {
     let sel = SegmentSelector::from_raw(selector);
-    let descriptor_addr = table_base + u64::from(sel.index() * 8);
+    let descriptor_addr = table_base + u64::from(sel.0 * 8);
     let ptr = descriptor_addr as *const u64;
     unsafe { *ptr }
 }
@@ -210,7 +211,7 @@ fn get_segment_descriptor_value(table_base: u64, selector: u16) -> u64 {
 /// Returns the limit of the given segment.
 fn get_segment_limit(table_base: u64, selector: u16) -> u32 {
     let sel = SegmentSelector::from_raw(selector);
-    if sel.index() == 0 && (sel.0 >> 2) == 0 {
+    if sel.0 == 0 && (sel.0 >> 2) == 0 {
         return 0; // unusable
     }
     let descriptor_value = get_segment_descriptor_value(table_base, selector);

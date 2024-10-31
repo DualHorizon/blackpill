@@ -1,3 +1,7 @@
+// FIXME: Quick and dirty trick to remove some of the non-relevant errors here.
+// We should fix this properly in the future.
+#![allow(dead_code)]
+#![allow(unreachable_pub)]
 use core::arch::asm;
 
 pub(crate) fn cpuid(leaf: u32, subleaf: u32) -> (u32, u32, u32, u32) {

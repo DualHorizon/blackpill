@@ -44,7 +44,6 @@
 ;// See: 15.5 VMRUN Instruction
 ;//      15.6 #VMEXIT
 ;//
-;// extern "efiapi" fn run_vm_svm(registers: &mut GuestRegisters, guest_vmcb_pa: *const Vmcb);
 .global run_vm_svm
 run_vm_svm:
     xchg    bx, bx
@@ -131,8 +130,4 @@ run_vm_svm:
     pop     rcx
     pop     rax
 
-    ;// Enable interrupts. Otherwise, UEFI service call will enter dead loop on
-    ;// some UEFI implementations such as that of VMware.
-    ;// See: 15.17 Global Interrupt Flag, STGI and CLGI Instructions
-    stgi
     ret

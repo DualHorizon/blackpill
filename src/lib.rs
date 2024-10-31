@@ -3,9 +3,11 @@
 
 pub(crate) mod hiding;
 pub(crate) mod hypervisor;
+#[macro_use]
 pub(crate) mod utils;
 pub(crate) mod xdp;
 
+// pub(crate) use alloc::alloc;
 pub(crate) use kernel::prelude::*;
 
 module! {

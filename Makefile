@@ -45,6 +45,13 @@ clean:
 	rm -rf target/
 	rm -rf vm/
 
+kdoc:
+	@echo "[+] Generating kernel documentation"
+	$(MAKE) LLVM=1 -C $(KDIR) rustdoc
+
+open-kdoc:
+	xdg-open $(KDIR)/Documentation/output/rust/rustdoc/kernel/index.html
+
 disk:
 	@if [ ! -f $(VM)/disk.img ]; then \
 		echo "[-] Disk image doesn't exist"; \

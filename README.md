@@ -83,7 +83,7 @@ Launch the VM with :
 $ make vm
 ```
 
-Inside the VM, login with `root:root` (note: to be changed to automatic login) and enable the module :
+Inside the VM, you are auto logged in `root`. You can enable the module :
 
 ```shell
 $ modprobe blackpill

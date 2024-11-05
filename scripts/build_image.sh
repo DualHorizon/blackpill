@@ -75,13 +75,17 @@ docker run -it --rm --volume "$ROOTFS_DIR:/rootfs" alpine sh -c '
     apk add openrc util-linux build-base;
     ln -s agetty /etc/init.d/agetty.ttyS0;
     rc-update add agetty.ttyS0 default;
+    sed -i "s/_type}/_type} --autologin root/g" /etc/init.d/agetty.ttyS0;
     rc-update add root default;
-    echo "root:root" | chpasswd;
+    echo "root:" | chpasswd;
     rc-update add devfs boot;
     rc-update add procfs boot;
     rc-update add sysfs boot;
     for d in bin etc lib root sbin usr; do tar c "/$d" | tar x -C /rootfs; done;
     for dir in dev proc run sys var; do mkdir -p /rootfs/${dir}; done;
+    printf \"#!/sbin/openrc-run\ncommand="/sbin/modprobe"\ncommand_args="blackpill"\n\" > /etc/init.d/blackpill;
+    chmod +x /etc/init.d/blackpill;
+    rc-update add blackpill default;
 '
 
 echo "[+] Copying Kernel source to rootfs..."

@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 
+# Stage 0
+# - Build Alpine disk image with minimal installation
+# - Copy kernel source to disk image
+# - Configure GRUB bootloader
+# - Automount next stage disk image
+# - Autorun `insmod blackpill.ko` from mounted disk image
+
 set -euo pipefail
 
 # General paths
-KERNEL_PATH="$PWD/linux"
+UPPER="$(realpath $(dirname "$0")/..)"
+KERNEL_PATH="$UPPER/linux"
 KERNEL_RELEASE=$(make -sC "$KERNEL_PATH" kernelversion)
-WORKDIR="$PWD/vm"
+WORKDIR="$UPPER/vm"
 
 # Disk configuration
 DISK_IMG="$WORKDIR/disk.img"
@@ -48,6 +56,10 @@ echo "[+] Creating partition table..."
 echo "[+] Setting up loop device..."
 sudo losetup -Pf "$DISK_IMG"
 LOOP_DEVICE=$(losetup -l | grep -vi "deleted" | grep "$DISK_IMG" | awk '{print $1}')
+if [ -z "$LOOP_DEVICE" ]; then
+    echo "[-] Loop device not found"
+    exit 1
+fi
 
 echo "[+] Formatting partition as ext4..."
 sudo mkfs.ext4 "${LOOP_DEVICE}p1"
@@ -93,10 +105,6 @@ EOF
 
 echo "[+] Installing GRUB in $BOOT_DIR through ${LOOP_DEVICE}p1"
 sudo grub-install --directory=/usr/lib/grub/i386-pc --boot-directory="$BOOT_DIR" "$LOOP_DEVICE"
-
-echo "[+] Installing rootkit"
-sudo chown -R "$USER:$USER" "$ROOTFS_DIR"
-make install
 
 echo "[+] Cleaning up..."
 sudo umount "$ROOTFS_DIR"

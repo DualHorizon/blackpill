@@ -1,15 +1,19 @@
 obj-m := blackpill.o
 blackpill-y := src/lib.o
 
+CC = clang
+ARCH ?= x86_64
+CORES = $(shell expr $$(nproc) - 1 )
+
+KDIR ?= $(PWD)/linux
+MDIR ?= $(PWD)
+
 THIS_FILE := $(lastword $(MAKEFILE_LIST))
 
-KDIR ?= linux/
-MDIR ?= $(PWD)
-INSTALL_MOD_PATH ?= $(MDIR)/vm/rootfs
-ARCH ?= x86_64
-CC = clang
+SCRIPTS ?= $(PWD)/scripts
+VM ?= $(PWD)/vm
+INSTALL_MOD_PATH ?= $(VM)/rootfs
 
-CORES = $(shell expr $$(nproc) - 1 )
 
 default:
 	@echo "[+] Compiling module"
@@ -28,6 +32,7 @@ kernel:
 
 install:
 	@echo "[+] Installing modules"
+	$(MAKE) LLVM=1 ARCH=$(ARCH) -C $(KDIR) M=$(MDIR) modules INSTALL_MOD_PATH=$(INSTALL_MOD_PATH) INSTALL_MOD_STRIP=1
 	$(MAKE) LLVM=1 ARCH=$(ARCH) -C $(KDIR) M=$(MDIR) modules_install INSTALL_MOD_PATH=$(INSTALL_MOD_PATH) INSTALL_MOD_STRIP=1
 
 rust-analyzer:
@@ -37,12 +42,19 @@ rust-analyzer:
 clean:
 	@echo "[+] Cleaning workspace"
 	$(MAKE) LLVM=1 ARCH=$(ARCH) -C $(KDIR) M=$(MDIR) clean
+	rm -rf target/
+	rm -rf vm/
 
 disk:
-	@echo "[+] Creating VM image disk"
-	./build_image.sh
+	@if [ ! -f $(VM)/disk.img ]; then \
+		echo "[-] Disk image doesn't exist"; \
+		echo "[+] Creating VM image disk"; \
+		$(SCRIPTS)/build_image.sh; \
+	else \
+		echo "[+] Disk image exists"; \
+	fi
 
 vm: disk
 	@echo "[+] Launching VM with QEMU"
-	./start_vm.sh
+	$(SCRIPTS)/start_vm.sh
 

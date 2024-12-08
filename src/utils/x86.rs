@@ -4,6 +4,17 @@
 #![allow(unreachable_pub)]
 use core::arch::asm;
 
+// x86-64 specific MSRs, should be an enum tbh
+pub const MSR_EFER: u32 = 0xc0000080; // extended feature register
+pub const MSR_STAR: u32 = 0xc0000081; // legacy mode SYSCALL target
+pub const MSR_LSTAR: u32 = 0xc0000082; // long mode SYSCALL target
+pub const MSR_CSTAR: u32 = 0xc0000083; // compat mode SYSCALL target
+pub const MSR_SYSCALL_MASK: u32 = 0xc0000084; // EFLAGS mask for syscall
+pub const MSR_FS_BASE: u32 = 0xc0000100; // 64bit FS base
+pub const MSR_GS_BASE: u32 = 0xc0000101; // 64bit GS base
+pub const MSR_KERNEL_GS_BASE: u32 = 0xc0000102; // SwapGS GS shadow
+pub const MSR_TSC_AUX: u32 = 0xc0000103; // Auxiliary TSC
+
 pub(crate) fn cpuid(leaf: u32, subleaf: u32) -> (u32, u32, u32, u32) {
     let mut data = [0u32; 4];
     unsafe {

@@ -63,5 +63,5 @@ disk:
 
 vm: disk
 	@echo "[+] Launching VM with QEMU"
-	$(SCRIPTS)/start_vm.sh
+	$(SCRIPTS)/start_vm.sh | tee $(VM)/start_vm.log
 

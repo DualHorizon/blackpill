@@ -6,9 +6,9 @@ pub(crate) fn vmx_support() -> bool {
     let mut ecx: u32;
     unsafe {
         asm!(
-            "mov $1, %eax",
+            "mov eax, 1",
             "cpuid",
-            "mov %ecx, {0:e}",
+            "mov {0:e}, ecx",
             out(reg) ecx,
             options(nostack)
         );
@@ -19,7 +19,7 @@ pub(crate) fn vmx_support() -> bool {
 pub(crate) unsafe fn read_cr0() -> u64 {
     let cr0: u64;
     unsafe {
-        asm!("mov %cr0, {}", out(reg) cr0);
+        asm!("mov {}, cr0", out(reg) cr0);
     }
     cr0
 }
@@ -27,7 +27,11 @@ pub(crate) unsafe fn read_cr0() -> u64 {
 pub(crate) unsafe fn read_cr3() -> u64 {
     let cr3: u64;
     unsafe {
-        asm!("mov %cr3, {}", out(reg) cr3);
+        asm!(
+            "mov {}, cr3",
+            out(reg) cr3,
+            options(nomem, nostack)
+        );
     }
     cr3
 }
@@ -35,14 +39,22 @@ pub(crate) unsafe fn read_cr3() -> u64 {
 pub(crate) unsafe fn read_cr4() -> u64 {
     let cr4: u64;
     unsafe {
-        asm!("mov %cr4, {}", out(reg) cr4);
+        asm!(
+            "mov {}, cr4",
+            out(reg) cr4,
+            options(nomem, nostack)
+        );
     }
     cr4
 }
 
 pub(crate) unsafe fn write_cr4(val: u64) {
     unsafe {
-        asm!("mov {}, %cr4", in(reg) val);
+        asm!(
+            "mov cr4, {}",
+            in(reg) val,
+            options(nomem, nostack)
+        );
     }
 }
 
@@ -64,10 +76,10 @@ pub(crate) fn vmxon(addr: u64) -> Result<()> {
     let mut success: u8;
     unsafe {
         asm!(
-            "vmxon {1}",
-            "setna {0}",
+            "vmxon [{}]",
+            "setna {}",
+            in(reg) &addr,
             out(reg_byte) success,
-            in(reg) addr,
             options(nostack)
         );
     }
@@ -82,10 +94,10 @@ pub(crate) fn vmclear(addr: u64) -> Result<()> {
     let mut success: u8;
     unsafe {
         asm!(
-            "vmclear {1}",
-            "setna {0}",
+            "vmclear [{}]",
+            "setna {}",
+            in(reg) &addr,
             out(reg_byte) success,
-            in(reg) addr,
             options(nostack)
         );
     }
@@ -100,10 +112,10 @@ pub(crate) fn vmptrld(addr: u64) -> Result<()> {
     let mut success: u8;
     unsafe {
         asm!(
-            "vmptrld {1}",
-            "setna {0}",
+            "vmptrld [{}]",
+            "setna {}",
+            in(reg) &addr,
             out(reg_byte) success,
-            in(reg) addr,
             options(nostack)
         );
     }

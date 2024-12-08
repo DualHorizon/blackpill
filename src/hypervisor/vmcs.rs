@@ -64,12 +64,12 @@ impl super::VmxContext {
             let mut tr: u16;
 
             asm!(
-                "mov %es, {0:x}",
-                "mov %cs, {1:x}",
-                "mov %ss, {2:x}",
-                "mov %ds, {3:x}",
-                "mov %fs, {4:x}",
-                "mov %gs, {5:x}",
+                "mov {0:x}, es",
+                "mov {1:x}, cs",
+                "mov {2:x}, ss",
+                "mov {3:x}, ds",
+                "mov {4:x}, fs",
+                "mov {5:x}, gs",
                 "str {6:x}",
                 out(reg) es,
                 out(reg) cs,

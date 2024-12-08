@@ -1,37 +1,50 @@
-//! A Linux kernel rootkit in Rust using a custom made type-2 hypervisor and eBPF XDP program.
-//! To-do: complete doc
+#![allow(unused_variables)]
+#![allow(dead_code)]
+#![allow(unused_assignments)]
+#![allow(missing_docs)]
+use kernel::prelude::*;
 
-pub(crate) mod hiding;
-pub(crate) mod hypervisor;
 #[macro_use]
-pub(crate) mod utils;
-pub(crate) mod xdp;
+extern crate core;
 
-// pub(crate) use alloc::alloc;
-pub(crate) use kernel::prelude::*;
+pub(crate) mod hypervisor;
 
 module! {
     type: Blackpill,
     name: "blackpill",
     author: "Unknown",
-    description: "Do we really need to add a description ?",
+    description: "Blackpill hypervisor",
     license: "GPL",
 }
 
-struct Blackpill;
+struct Blackpill {
+    vmx_context: Option<hypervisor::VmxContext>,
+}
+
+unsafe impl Sync for Blackpill {}
+unsafe impl Send for Blackpill {}
 
 impl kernel::Module for Blackpill {
-    fn init(module: &'static ThisModule) -> Result<Self> {
-        pr_info!("Starting\n");
+    fn init(_module: &'static ThisModule) -> Result<Self> {
+        pr_info!("Blackpill: initializing\n");
 
-        hiding::hide(module);
-
-        Ok(Blackpill)
+        match hypervisor::VmxContext::new() {
+            Ok(mut vmx_context) => {
+                vmx_context.init();
+            }
+            Err(e) => {
+                pr_err!("Failed to create VMX context\n");
+                Err(e)
+            }
+        }
     }
 }
 
 impl Drop for Blackpill {
     fn drop(&mut self) {
-        pr_info!("Exiting\n");
+        pr_info!("Blackpill: cleanup\n");
+        if let Some(ctx) = self.vmx_context.take() {
+            drop(ctx);
+        }
     }
 }

@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "blackpill-c2"
+version = "0.1.0"
+description = ""
+authors = ["abel <67806187+standard3@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+rich = "^13.9.4"
+keystone-engine = "^0.9.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

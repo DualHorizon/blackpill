@@ -58,7 +58,7 @@ pub(crate) fn get_syscall_table() -> Option<*mut *mut u64> {
     let mut found: Option<*mut *mut u64> = None;
 
     unsafe {
-        for offset in 0..5000 {
+        for offset in 0..500 {
             let current = ptr.add(offset);
 
             pr_info!("Offset: {}", offset);

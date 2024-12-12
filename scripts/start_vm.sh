@@ -62,4 +62,5 @@ echo "[+] Starting VM..."
     -enable-kvm \
     -m 2G \
     -drive file="$DISK",format=raw \
-    -nic user,model=rtl8139
+    -nic user,model=rtl8139 \
+    -cpu host

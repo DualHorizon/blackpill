@@ -248,7 +248,7 @@ def execute_command(sock: socket.socket, command: str, args: List[str]) -> None:
         shellcode = shellcode_to_c_array(payload)
 
         console.print(f"[green]Sending payload[/green]: {payload.hex()}")
-        console.print(f"char shellcode[{len(payload)}] = [{shellcode}];")
+        console.print(f"unsigned char shellcode[{len(payload)}] = {{shellcode}};")
         send_to_server(sock, payload)
     except Exception as e:
         console.print(f"[bold red]Error processing command '{command}': {e}[/bold red]")

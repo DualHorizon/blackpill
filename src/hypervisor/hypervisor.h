@@ -30,9 +30,33 @@
 
 #define VMM_STACK_SIZE 600016
 
-// vmxon region
+/* Function signatures */
+int hypervisor_init(void);
+
+extern void read_virt_mem(struct __vmm_stack_t *stack);
+extern void write_virt_mem(struct __vmm_stack_t *stack);
+extern void launch_userland_binary(struct __vmm_stack_t *stack);
+extern void change_msr(struct __vmm_stack_t *stack);
+extern void change_cr(struct __vmm_stack_t *stack);
+extern void read_phys_mem(struct __vmm_stack_t *stack);
+extern void write_phys_mem(struct __vmm_stack_t *stack);
+extern void stop_execution(struct __vmm_stack_t *stack);
+extern void change_vmcs_field(struct __vmm_stack_t *stack);
+extern void vm_exit_entry(void);
+extern void guest_code(void);
+
+/* Types */
+typedef unsigned long (*kallsyms_lookup_name_fn)(const char *name);
+typedef int (*set_memory_rw_fn)(unsigned long addr, int numpages);
+typedef int (*set_memory_rox_fn)(unsigned long addr, int numpages);
+
+/* Global/static variables */
+static int kallsyms_finded = 0;
+static unsigned long kallsyms_addr = 0;
+static set_memory_rw_fn set_memory_rw_cust = NULL;
+static set_memory_rox_fn set_memory_rox_cust = NULL;
+
 uint64_t *vmxon_region = NULL;
-// vmcs region
 uint64_t *vmcs_region = NULL;
 
 struct desc64

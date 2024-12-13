@@ -25,19 +25,7 @@
 #include <linux/vmalloc.h>
 
 #include "capabilities.h"
-
-// Temporary function to avoid unused function warnings
-#ifdef __GNUC__
-#define UNUSED(x) UNUSED_##x __attribute__((__unused__))
-#else
-#define UNUSED(x) UNUSED_##x
-#endif
-
-#ifdef __GNUC__
-#define UNUSED_FUNCTION(x) __attribute__((__unused__)) UNUSED_##x
-#else
-#define UNUSED_FUNCTION(x) UNUSED_##x
-#endif
+#include "utils.h"
 
 static void read_virt_mem(struct __vmm_stack_t *stack)
 {
@@ -143,7 +131,7 @@ static void enter_the_matrix(struct __vmm_stack_t *stack)
 }
 
 // TODO: Remove this function
-static void UNUSED_FUNCTION(call_all)(void)
+static void UNUSED_FUNCTION(useless)(void)
 {
     struct __vmm_stack_t stack = {
         .r15 = 0,

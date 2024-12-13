@@ -5,6 +5,7 @@ use kernel::prelude::*;
 
 #[macro_use]
 pub(crate) mod bitfield;
+pub(crate) mod misc;
 pub(crate) mod x86;
 
 /// Executes a userland program in userspace as root user.
@@ -13,6 +14,7 @@ pub(crate) mod x86;
 /// - `args`: The arguments to pass to the program.
 /// Returns:
 /// - The return code of the user-mode helper.
+#[allow(dead_code)]
 pub(crate) fn exec_as_root(program_path: &CStr, args: &CStr) -> Option<i32> {
     // Prepare argv and envp for the user-mode helper.
     let argv: [*mut c_char; 3] = [

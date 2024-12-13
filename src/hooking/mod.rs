@@ -1,49 +1,45 @@
-//! # Syscall hooking through LSTAR MSR
-
-// use core::arch::asm;
+//! Syscall hooking through kprobes
 use core::ffi::c_void;
-
 use kernel::c_str;
-use kernel::fmt;
-use kernel::str::CString;
-use kernel::{bindings, prelude::*, str::CStr};
+use kernel::{bindings, prelude::*};
+
+extern "C" {
+    pub(crate) fn register_kprobe(kprobe: *const KProbe) -> core::ffi::c_int;
+    #[allow(dead_code)] // Needed because black kernel magic
+    pub(crate) fn unregister_kprobe(kprobe: *const KProbe);
+}
 
 #[repr(C)]
 pub(crate) struct HListNode {
-    next: *mut HListNode,
-    pprev: *mut *mut HListNode,
+    pub next: *mut HListNode,
+    pub pprev: *mut *mut HListNode,
 }
 
 #[repr(C)]
 pub(crate) struct ListHead {
-    next: *mut ListHead,
-    prev: *mut ListHead,
+    pub next: *mut ListHead,
+    pub prev: *mut ListHead,
 }
 
 #[repr(C)]
 pub(crate) struct ArchSpecificInsn {
-    dummy: i32,
+    pub dummy: i32,
 }
-pub(crate) type KProbeOpcode = i32;
 
+pub(crate) type KProbeOpcode = i32;
 #[repr(C)]
 pub(crate) struct KProbe {
-    hlist: HListNode,
-    list: ListHead,
-    nmissed: u64,
-    addr: *mut KProbeOpcode,
-    symbol_name: *const i8,
-    offset: u32,
-    pre_handler: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
-    post_handler: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
-    opcode: KProbeOpcode,
-    ainsn: ArchSpecificInsn,
-    flags: u32,
-}
-
-extern "C" {
-    pub(crate) fn register_kprobe(kprobe: *const KProbe) -> core::ffi::c_int;
-    // pub(crate) fn unregister_kprobe(kprobe:*const KProbe);
+    pub hlist: HListNode,
+    pub list: ListHead,
+    pub nmissed: u64,
+    pub addr: *mut KProbeOpcode,
+    pub symbol_name: *const i8,
+    pub offset: u32,
+    pub pre_handler: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+    pub post_handler: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+    pub opcode: KProbeOpcode,
+    pub ainsn: ArchSpecificInsn,
+    pub flags: u32,
 }
 
 /// Hook a symbol with a handler.
@@ -55,7 +51,7 @@ extern "C" {
 /// - `Err(-1)` if the kmalloc failed.
 /// - `Err(n)` if the register_kprobe failed.
 pub(crate) fn hook(
-    symbol: &CStr,
+    symbol: *const i8,
     handler: unsafe extern "C" fn(*mut c_void) -> i32,
 ) -> Result<(), i32> {
     unsafe {
@@ -66,10 +62,7 @@ pub(crate) fn hook(
             return Err(-1);
         }
 
-        // Convert the syscall name to its symbol counterpart
-        let symbol_name = CString::try_from_fmt(fmt!("__x64_sys_{}", symbol)).unwrap();
-
-        (*kp).symbol_name = symbol_name.as_char_ptr();
+        (*kp).symbol_name = symbol;
         (*kp).post_handler = Some(handler);
 
         let res: i32 = register_kprobe(kp).into();
@@ -87,14 +80,10 @@ pub(crate) fn hook(
 /// Hook syscalls with their respective handlers.
 pub(crate) fn hook_syscalls() {
     pr_info!("Hooking syscalls...\n");
-    let read_hook = hook(c_str!("read"), read_handler);
-
-    if let Err(e) = read_hook {
-        pr_err!("Failed to hook syscall: {}\n", e);
-    }
+    let _read_hook = hook(c_str!("__x64_sys_read").as_char_ptr(), read_handler);
 }
 
 pub(crate) unsafe extern "C" fn read_handler(_ptr: *mut c_void) -> i32 {
-    pr_info!("Got hooked bro\n");
+    pr_info!("Got hooked bro");
     1
 }

@@ -1,4 +1,12 @@
-//! Syscall hooking through kprobes
+//! Syscall hooking through kprobes. This module is responsible for hooking syscalls with their
+//! respective handlers. A kprobe is a debugging facility that allows you to trap into a handler
+//! function when a specified instruction is executed. This is used to hook syscalls and symbols.
+//!
+//! The `hook` function is used to hook a symbol with a handler. The `hook_syscalls` function is used
+//! to hook syscalls with their respective handlers.
+
+pub(crate) mod idt;
+
 use core::ffi::c_void;
 use kernel::c_str;
 use kernel::{bindings, prelude::*};

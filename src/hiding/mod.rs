@@ -1,4 +1,5 @@
 //! This module encapsulates all hiding features of Blackpill.
+//! This includes hiding the rootkit from userspace and kernelspace.
 
 use kernel::prelude::*;
 use kernel::ThisModule;

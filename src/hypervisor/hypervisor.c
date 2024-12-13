@@ -3,30 +3,10 @@
 #include "hypervisor.h"
 #include "exit_reason.h"
 #include "macros.h"
+#include "utils.h"
 
 #define GUEST_STACK_SIZE 64
 #define VMX_VMEXIT_INSTRUCTION_LENGTH 0x440C
-
-extern void read_virt_mem(struct __vmm_stack_t *stack);
-extern void write_virt_mem(struct __vmm_stack_t *stack);
-extern void launch_userland_binary(struct __vmm_stack_t *stack);
-extern void change_msr(struct __vmm_stack_t *stack);
-extern void change_cr(struct __vmm_stack_t *stack);
-extern void read_phys_mem(struct __vmm_stack_t *stack);
-extern void write_phys_mem(struct __vmm_stack_t *stack);
-extern void stop_execution(struct __vmm_stack_t *stack);
-extern void change_vmcs_field(struct __vmm_stack_t *stack);
-extern void vm_exit_entry(void);
-extern void guest_code(void);
-
-typedef unsigned long (*kallsyms_lookup_name_fn)(const char *name);
-typedef int (*set_memory_rw_fn)(unsigned long addr, int numpages);
-typedef int (*set_memory_rox_fn)(unsigned long addr, int numpages);
-
-static int kallsyms_finded = 0;
-static unsigned long kallsyms_addr = 0;
-static set_memory_rw_fn set_memory_rw_cust = NULL;
-static set_memory_rox_fn set_memory_rox_cust = NULL;
 
 static void *set_mem_rw(unsigned long addr)
 {
@@ -933,7 +913,7 @@ static bool init_vmlaunch_process(void)
     return true;
 }
 
-static int start_init(void)
+int hypervisor_init(void)
 {
 
     set_memory_rw_cust = (set_memory_rw_fn)get_proc_addr("set_memory_rw");
@@ -996,4 +976,40 @@ static int start_init(void)
         printk(KERN_INFO "VMXOFF Operation succeeded! CONTINUING\n");
     }
     return 0;
+}
+
+// TODO: Remove this function
+static void UNUSED_FUNCTION(useless)(void)
+{
+    struct __vmm_stack_t stack = {
+        .r15 = 0,
+        .r14 = 0,
+        .r13 = 0,
+        .r12 = 0,
+        .r11 = 0,
+        .r10 = 0,
+        .r9 = 0,
+        .r8 = 0,
+        .rbp = 0,
+        .rdi = 0,
+        .rsi = 0,
+        .rdx = 0,
+        .rcx = 0,
+        .rbx = 0,
+        .rax = 0,
+        .int_no = 0,
+        .err_code = 0,
+        .rip = 0,
+        .cs = 0,
+        .rflags = 0,
+        .rsp = 0,
+        .ss = 0,
+    };
+
+    vm_exit_handler(&stack);
+    map_all_physical_memory();
+    end_exit();
+    hypervisor_init();
+    enter_the_matrix();
+    debug(0);
 }

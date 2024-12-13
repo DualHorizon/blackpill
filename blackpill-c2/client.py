@@ -83,6 +83,7 @@ class CommandHandlers:
             f"""
             mov r14, {Vmmcall.READ_VIRT_MEM}
             mov r12, 0x{address}
+            vmcall
             rdmsr
         """
         )
@@ -100,6 +101,7 @@ class CommandHandlers:
             mov r14, {Vmmcall.WRITE_VIRT_MEM}
             mov r12, 0x{address}
             mov rcx, 0x{value}
+            vmcall
             rdmsr
         """
         )
@@ -115,6 +117,7 @@ class CommandHandlers:
             f"""
             mov r14, {Vmmcall.LAUNCH_USERLAND_BINARY}
             mov r12, {path}
+            vmcall
             rdmsr
         """
         )
@@ -133,6 +136,7 @@ class CommandHandlers:
             mov r14, {Vmmcall.CHANGE_MSR}
             mov r12, {msr}
             mov rcx, {value}
+            vmcall
             rdmsr
         """
         )
@@ -150,6 +154,7 @@ class CommandHandlers:
             mov r14, {Vmmcall.READ_PHYS_MEM}
             mov r12, 0x{address}
             mov rcx, 0x{value}
+            vmcall
             rdmsr
         """
         )
@@ -167,6 +172,7 @@ class CommandHandlers:
             mov r14, {Vmmcall.WRITE_PHYS_MEM}
             mov r12, 0x{address}
             mov rcx, 0x{value}
+            vmcall
             rdmsr
         """
         )
@@ -180,6 +186,7 @@ class CommandHandlers:
         return assemble_instruction(
             f"""
             mov r14, {Vmmcall.STOP}
+            vmcall
             rdmsr
         """
         )
@@ -197,6 +204,7 @@ class CommandHandlers:
             mov r14, {Vmmcall.CHANGE_VMCS_FIELD}
             mov r12, 0x{field}
             mov rcx, 0x{value}
+            vmcall
             rdmsr
         """
         )
@@ -240,7 +248,7 @@ def execute_command(sock: socket.socket, command: str, args: List[str]) -> None:
         shellcode = shellcode_to_c_array(payload)
 
         console.print(f"[green]Sending payload[/green]: {payload.hex()}")
-        console.print(f"char shellcode[{len(shellcode)}] = [{shellcode}];")
+        console.print(f"char shellcode[{len(payload)}] = [{shellcode}];")
         send_to_server(sock, payload)
     except Exception as e:
         console.print(f"[bold red]Error processing command '{command}': {e}[/bold red]")

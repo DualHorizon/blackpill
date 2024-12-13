@@ -4,7 +4,6 @@
 #include "exit_reason.h"
 #include "macros.h"
 
-#define INT3() asm volatile("int3\n\t");
 #define GUEST_STACK_SIZE 64
 #define VMX_VMEXIT_INSTRUCTION_LENGTH 0x440C
 
@@ -39,6 +38,7 @@ static void *set_mem_rw(unsigned long addr)
     printk(KERN_INFO "Memory set to RW at address: %p\n", memory);
     return memory;
 }
+
 static void *set_mem_rx(unsigned long addr)
 {
     void *memory = NULL;
@@ -181,7 +181,7 @@ static void debug(uint64_t vmcs_field)
     return;
 }
 
-static uint32_t vmExit_reason(void)
+static uint32_t vmexit_reason(void)
 {
     uint32_t exit_reason = vmreadz(VM_EXIT_REASON);
     exit_reason = exit_reason & 0xffff;
@@ -310,7 +310,7 @@ static void vm_exit_handler(struct __vmm_stack_t *stack)
     pr_info("Handling vm exit");
     read_all_registers(stack);
 
-    uint32_t Vm_exit_reason = vmExit_reason();
+    uint32_t Vm_exit_reason = vmexit_reason();
 
     pr_info("RBX = %llx ", stack->rbx);
 
@@ -383,14 +383,14 @@ static void vm_exit_handler(struct __vmm_stack_t *stack)
 
 // CH 23.6, Vol 3
 // Checking the support of VMX
-static bool vmxSupport(void)
+static bool vmx_support(void)
 {
 
-    int getVmxSupport, vmxBit;
+    int get_vmx_support, vmxBit;
     __asm__("mov $1, %rax");
     __asm__("cpuid");
-    __asm__("mov %%ecx , %0\n\t" : "=r"(getVmxSupport));
-    vmxBit = (getVmxSupport >> 5) & 1;
+    __asm__("mov %%ecx , %0\n\t" : "=r"(get_vmx_support));
+    vmxBit = (get_vmx_support >> 5) & 1;
     if (vmxBit == 1)
     {
         return true;
@@ -404,7 +404,7 @@ static bool vmxSupport(void)
 
 // CH 23.7, Vol 3
 // Enter in VMX mode
-static bool getVmxOperation(void)
+static bool get_vmx_operation(void)
 {
     // unsigned long cr0;
     unsigned long cr4;
@@ -464,12 +464,12 @@ static bool getVmxOperation(void)
 
 // CH 24.2, Vol 3
 // allocating VMCS region
-static bool vmcsOperations(void)
+static bool vmcs_operations(void)
 {
-    long int vmcsPhyRegion = 0;
+    long int vmcs_phy_region = 0;
     if (alloc_vmcs_region())
     {
-        vmcsPhyRegion = __pa(vmcs_region);
+        vmcs_phy_region = __pa(vmcs_region);
         *(uint32_t *)vmcs_region = vmcs_revision_id();
     }
     else
@@ -478,7 +478,7 @@ static bool vmcsOperations(void)
     }
 
     // making the vmcs active and current
-    if (_vmptrld(vmcsPhyRegion))
+    if (_vmptrld(vmcs_phy_region))
         return false;
     return true;
 }
@@ -529,7 +529,7 @@ static bool map_all_physical_memory(void)
 
 // CH 26.2.1, Vol 3
 // Initializing VMCS control field
-static bool initVmcsControlField(void)
+static bool init_vmcs_control_field(void)
 {
     // checking of any of the default1 controls may be 0:
     // not doing it for now.
@@ -899,7 +899,7 @@ static void __exit end_exit(void)
     return;
 }
 
-static bool vmxoffOperation(void)
+static bool vmxoff_operation(void)
 {
     if (deallocate_vmxon_region())
     {
@@ -921,7 +921,7 @@ static bool vmxoffOperation(void)
     return true;
 }
 
-static bool initVmLaunchProcess(void)
+static bool init_vmlaunch_process(void)
 {
     int vmlaunch_status = _vmlaunch();
     if (vmlaunch_status != 0)
@@ -939,7 +939,7 @@ static int start_init(void)
     set_memory_rw_cust = (set_memory_rw_fn)get_proc_addr("set_memory_rw");
     set_memory_rox_cust = (set_memory_rox_fn)get_proc_addr("set_memory_rox");
 
-    if (!vmxSupport())
+    if (!vmx_support())
     {
         printk(KERN_INFO "VMX support not present! EXITING");
         return 0;
@@ -948,7 +948,7 @@ static int start_init(void)
     {
         printk(KERN_INFO "VMX support present! CONTINUING");
     }
-    if (!getVmxOperation())
+    if (!get_vmx_operation())
     {
         printk(KERN_INFO "VMX Operation failed! EXITING");
         return 0;
@@ -957,7 +957,7 @@ static int start_init(void)
     {
         printk(KERN_INFO "VMX Operation succeeded! CONTINUING");
     }
-    if (!vmcsOperations())
+    if (!vmcs_operations())
     {
         printk(KERN_INFO "VMCS Allocation failed! EXITING");
         return 0;
@@ -966,7 +966,7 @@ static int start_init(void)
     {
         printk(KERN_INFO "VMCS Allocation succeeded! CONTINUING");
     }
-    if (!initVmcsControlField())
+    if (!init_vmcs_control_field())
     {
         printk(KERN_INFO "Initialization of VMCS Control field failed! EXITING");
         return 0;
@@ -976,7 +976,7 @@ static int start_init(void)
         printk(KERN_INFO "Initializing of control fields to the most basic "
                          "settings succeeded! CONTINUING");
     }
-    if (!initVmLaunchProcess())
+    if (!init_vmlaunch_process())
     {
         printk(KERN_INFO "VMLAUNCH failed! EXITING");
         return 0;
@@ -986,7 +986,7 @@ static int start_init(void)
         printk(KERN_INFO "VMLAUNCH succeeded! CONTINUING");
     }
 
-    if (!vmxoffOperation())
+    if (!vmxoff_operation())
     {
         printk(KERN_INFO "VMXOFF operation failed! EXITING");
         return 0;

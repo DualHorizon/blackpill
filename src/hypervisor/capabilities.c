@@ -142,6 +142,7 @@ static void enter_the_matrix(struct __vmm_stack_t *stack)
     pr_info("Performing enter_the_matrix...\n");
 }
 
+// TODO: Remove this function
 static void UNUSED_FUNCTION(call_all)(void)
 {
     struct __vmm_stack_t stack = {

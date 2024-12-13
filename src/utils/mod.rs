@@ -14,7 +14,7 @@ use kernel::bindings::{call_usermodehelper, UMH_WAIT_EXEC};
 use kernel::c_str;
 use kernel::prelude::*;
 
-use crate::hooking::{register_kprobe, unregister_kprobe, KProbe};
+use crate::hooking::syscall::{register_kprobe, unregister_kprobe, KProbe};
 
 extern "C" {
     /// Look up the address of a function by its name.

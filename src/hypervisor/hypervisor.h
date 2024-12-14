@@ -1,6 +1,5 @@
 #ifndef PROTOVIRT_H
 #define PROTOVIRT_H
-
 #include <asm/asm.h>
 #include <asm/errno.h>
 #include <asm/io.h>
@@ -28,36 +27,10 @@
 
 #include "macros.h"
 
-#define VMM_STACK_SIZE 600016
-
-/* Function signatures */
-int hypervisor_init(void);
-
-extern void read_virt_mem(struct __vmm_stack_t *stack);
-extern void write_virt_mem(struct __vmm_stack_t *stack);
-extern void launch_userland_binary(struct __vmm_stack_t *stack);
-extern void change_msr(struct __vmm_stack_t *stack);
-extern void change_cr(struct __vmm_stack_t *stack);
-extern void read_phys_mem(struct __vmm_stack_t *stack);
-extern void write_phys_mem(struct __vmm_stack_t *stack);
-extern void stop_execution(struct __vmm_stack_t *stack);
-extern void change_vmcs_field(struct __vmm_stack_t *stack);
-extern void vm_exit_entry(void);
-extern void guest_code(void);
-
-/* Types */
-typedef unsigned long (*kallsyms_lookup_name_fn)(const char *name);
-typedef int (*set_memory_rw_fn)(unsigned long addr, int numpages);
-typedef int (*set_memory_rox_fn)(unsigned long addr, int numpages);
-
-/* Global/static variables */
-static int kallsyms_finded = 0;
-static unsigned long kallsyms_addr = 0;
-static set_memory_rw_fn set_memory_rw_cust = NULL;
-static set_memory_rox_fn set_memory_rox_cust = NULL;
-
-uint64_t *vmxon_region = NULL;
-uint64_t *vmcs_region = NULL;
+// vmxon region
+uint64_t *vmxonRegion = NULL;
+// vmcs region
+uint64_t *vmcsRegion = NULL;
 
 struct desc64
 {
@@ -80,6 +53,18 @@ static inline unsigned long long notrace __rdmsr1(unsigned int msr)
 
     return EAX_EDX_VAL(val, low, high);
 }
+
+// static inline unsigned long long notrace __rdmsr1(unsigned int msr)
+//{
+//	DECLARE_ARGS(val, low, high);
+//
+//	asm volatile("1: rdmsr\n"
+//		     "2:\n"
+//		     _ASM_EXTABLE_HANDLE(1b, 2b, ex_handler_rdmsr_unsafe)
+//		     : EAX_EDX_RET(val, low, high) : "c" (msr));
+//
+//	return EAX_EDX_VAL(val, low, high);
+// }
 
 // CH 30.3, Vol 3
 // VMXON instruction - Enter VMX operation
@@ -111,7 +96,6 @@ static inline int vmread(uint64_t encoding, uint64_t *value)
     *value = tmp;
     return ret;
 }
-
 /*
  * A wrapper around vmread (taken from kvm vmx.c) that ignores errors
  * and returns zero if the vmread instruction fails.
@@ -143,10 +127,10 @@ static inline uint32_t vmcs_revision_id(void)
 
 // CH 23.7, Vol 3
 // Enter in VMX mode
-static bool alloc_vmcs_region(void)
+static bool allocVmcsRegion(void)
 {
-    vmcs_region = kzalloc(MYPAGE_SIZE, GFP_KERNEL);
-    if (vmcs_region == NULL)
+    vmcsRegion = kzalloc(MYPAGE_SIZE, GFP_KERNEL);
+    if (vmcsRegion == NULL)
     {
         printk(KERN_INFO "Error allocating vmcs region\n");
         return false;
@@ -306,6 +290,17 @@ static inline uint64_t get_idt_base1(void)
     return idt.address;
 }
 
+//---------------struct
+//	struct __vmm_context_t
+//{
+//    unsigned long processor_count;
+//    __declspec(align(4096)) struct __vcpu_t **vcpu_table;
+//    __declspec(align(4096)) void *msr_bitmap;
+//};
+//
+//
+
+#define VMM_STACK_SIZE 600016
 struct CPUID
 {
     int eax;
@@ -321,6 +316,82 @@ struct __cpuid_params_t
     unsigned long long rcx;
     unsigned long long rdx;
 };
+
+// struct __vmcs_t
+//{
+//     union
+//     {
+//         unsigned int all;
+//         struct
+//         {
+//             unsigned int revision_identifier : 31;
+//             unsigned int shadow_vmcs_indicator : 1;
+//         } bits;
+//     } header;
+//
+//     unsigned int abort_indicator;
+//     char data[0x1000 - 2 * sizeof(unsigned)];
+// };
+//
+// struct __vmm_stack_t;
+// struct __vcpu_t;
+//
+//
+//
+// typedef long long __m128 __attribute__ ((__vector_size__ (16),
+// __may_alias__)); struct __guest_registers_t
+//{
+//     __m128 xmm[6];
+//     void *padding;
+//     unsigned long long  r15;
+//     unsigned long long  r14;
+//     unsigned long long  r13;
+//     unsigned long long  r12;
+//     unsigned long long  r11;
+//     unsigned long long  r10;
+//     unsigned long long  r9;
+//     unsigned long long  r8;
+//     unsigned long long  rdi;
+//     unsigned long long  rsi;
+//     unsigned long long  rbp;
+//     unsigned long long  rbx;
+//     unsigned long long  rdx;
+//     unsigned long long  rcx;
+//     unsigned long long  rax;
+// };
+//
+//
+// struct __vmm_context_t
+//{
+//     size_t ProcessorCount;
+//     /*__declspec(align(4096))*/ struct __vcpu_t** vcpu_table;
+//     /*__declspec(align(4096))*/ void* msr_bitmap;
+//     unsigned long long msr_bitmap_physical;
+//     void* stack;
+//     size_t stack_size;
+//     struct __guest_registers_t guest_registers;
+// };
+//
+// struct __vcpu_t
+//{
+//     struct vmexit_status_t* status;
+//     unsigned long long guest_rsp;
+//     unsigned long long guest_rip;
+//
+//     struct __vmcs_t* vmcs;
+//     unsigned long long vmcs_physical;
+//
+//     struct __vmcs_t* vmxon;
+//     unsigned long long vmxon_physical;
+//
+//     /*__declspec(align(4096))*/ struct __vmm_stack_t* vmm_stack;
+// };
+//
+// struct __vmm_stack_t
+//{
+//     unsigned char stackLimit[VMM_STACK_SIZE - sizeof(struct
+//     __vmm_context_t)]; struct __vmm_context_t vmm_context;
+// };
 
 struct __vmm_stack_t
 {
@@ -357,9 +428,9 @@ struct __vmm_stack_t
 // Dealloc vmxon region
 static bool deallocate_vmxon_region(void)
 {
-    if (vmxon_region)
+    if (vmxonRegion)
     {
-        kfree(vmxon_region);
+        kfree(vmxonRegion);
         return true;
     }
     return false;
@@ -368,10 +439,10 @@ static bool deallocate_vmxon_region(void)
 /* Dealloc vmcs guest region*/
 static bool deallocate_vmcs_region(void)
 {
-    if (vmcs_region)
+    if (vmcsRegion)
     {
         printk(KERN_INFO "Freeing allocated vmcs region!\n");
-        kfree(vmcs_region);
+        kfree(vmcsRegion);
         return true;
     }
     return false;

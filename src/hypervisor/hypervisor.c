@@ -1,32 +1,44 @@
-#include <linux/kprobes.h>
-
 #include "hypervisor.h"
 #include "exit_reason.h"
 #include "macros.h"
 #include "utils.h"
+#include <linux/kprobes.h>
 
+extern void read_virt_mem(struct __vmm_stack_t *stack);
+extern void write_virt_mem(struct __vmm_stack_t *stack);
+extern void launch_userland_binary(struct __vmm_stack_t *stack);
+extern void change_msr(struct __vmm_stack_t *stack);
+extern void change_cr(struct __vmm_stack_t *stack);
+extern void read_phys_mem(struct __vmm_stack_t *stack);
+extern void write_phys_mem(struct __vmm_stack_t *stack);
+extern void stop_execution(struct __vmm_stack_t *stack);
+extern void change_vmcs_field(struct __vmm_stack_t *stack);
+extern void vm_exit_entry(void);
+
+#define INT3() asm volatile("int3\n\t");
 #define GUEST_STACK_SIZE 64
 #define VMX_VMEXIT_INSTRUCTION_LENGTH 0x440C
 
-static void *set_mem_rw(unsigned long addr)
+typedef int (*set_memory_rw_fn)(unsigned long addr, int numpages);
+typedef int (*set_memory_rox_fn)(unsigned long addr, int numpages);
+
+static set_memory_rw_fn set_memory_rw_cust = NULL;
+static set_memory_rox_fn set_memory_rox_cust = NULL;
+extern void guest_code(void);
+
+char str[] = "hello";
+static void set_mem_rw(unsigned long addr)
 {
-    void *memory = NULL;
-    int num_pages = 1; /* Number of pages to modify */
+    int num_pages = 1;
 
     set_memory_rw_cust(addr, num_pages);
-
-    printk(KERN_INFO "Memory set to RW at address: %p\n", memory);
-    return memory;
+    return;
 }
-
-static void *set_mem_rx(unsigned long addr)
+static void set_mem_rx(unsigned long addr)
 {
-    void *memory = NULL;
     int num_pages = 1;
     set_memory_rox_cust(addr, num_pages);
-
-    printk(KERN_INFO "Memory set to RX at address: %p\n", memory);
-    return memory;
+    return;
 }
 
 static unsigned long alloc(void)
@@ -34,7 +46,7 @@ static unsigned long alloc(void)
     void *memory = NULL;
     unsigned long page_addr = 0;
 
-    memory = vmalloc(PAGE_SIZE); /* Allocate one page of memory */
+    memory = vmalloc(PAGE_SIZE);
     if (!memory)
     {
         printk(KERN_ERR "Failed to allocate memory.\n");
@@ -61,21 +73,24 @@ static void adjust_rip(void)
         return;
     }
 
-    // Get the current RIP from the VMCS
     vmread(GUEST_RIP, &rip);
     if (rip == ~0ULL)
-    { // Check for vmread failure
+    {
         pr_err("Failed to read GUEST_RIP\n");
         return;
     }
 
-    // Adjust the RIP by adding the instruction length
     rip += instruction_length;
 
     // Write the adjusted RIP back to the VMCS
     vmwrite(GUEST_RIP, rip); // vmwrite returns non-zero on failure
     pr_info("INS leng = %llx, Guest rip = %llx ", instruction_length, rip);
 }
+
+static int kallsyms_finded = 0;
+static unsigned long kallsyms_addr = 0;
+
+typedef unsigned long (*kallsyms_lookup_name_fn)(const char *name);
 
 /* Helper: Create a kprobe for the given symbol and get its address */
 static unsigned long probe_function_address(const char *symbol_name)
@@ -114,8 +129,8 @@ static unsigned long probe_function_address(const char *symbol_name)
     return address;
 }
 
-/* Function: get_proc_addr */
-static unsigned long get_proc_addr(const char *function_name)
+/* Function: GetProcAddr */
+static unsigned long GetProcAddr(const char *function_name)
 {
     unsigned long address = 0;
 
@@ -129,15 +144,12 @@ static unsigned long get_proc_addr(const char *function_name)
             printk(KERN_ERR "kallsyms_lookup_name not found.\n");
         }
     }
-
-    /* First, try using kprobe to find the address */
     address = probe_function_address(function_name);
     if (address)
     {
         return address;
     }
 
-    /* If kprobe fails, fallback to kallsyms_lookup_name if available */
     if (kallsyms_addr)
     {
         kallsyms_lookup_name_fn kallsyms_lookup_name =
@@ -152,16 +164,15 @@ static unsigned long get_proc_addr(const char *function_name)
     printk(KERN_ERR "Failed to resolve symbol: %s\n", function_name);
     return 0;
 }
-
-static void debug(uint64_t vmcs_field)
+static void UNUSED_FUNCTION(debug)(uint64_t vmcs_field)
 {
+
     uint64_t res;
     vmread(vmcs_field, &res);
     pr_info("VMCS_FIELD :: %llx = %llx", vmcs_field, res);
     return;
 }
-
-static uint32_t vmexit_reason(void)
+static uint32_t vmExit_reason(void)
 {
     uint32_t exit_reason = vmreadz(VM_EXIT_REASON);
     exit_reason = exit_reason & 0xffff;
@@ -171,8 +182,8 @@ static uint32_t vmexit_reason(void)
 static void launch_bash(void)
 {
     // Prepare arguments for bash
-    char *bash_argv[] = {"/bin/sh", NULL}; // Command to execute
-    char *bash_envp[] = {NULL};            // Environment variables
+    char *bash_argv[] = {"/bin/sh", NULL};
+    char *bash_envp[] = {NULL};
 
     printk(KERN_INFO "Launching bash from guest environment\n");
 
@@ -180,37 +191,87 @@ static void launch_bash(void)
     int ret = call_usermodehelper("/bin/sh", bash_argv, bash_envp, UMH_WAIT_PROC);
 
     if (ret)
-        printk(KERN_ERR "Failed to launch sh: %d\n", ret);
+        printk(KERN_ERR "Failed to launch bash: %d\n", ret);
     else
         printk(KERN_INFO "Bash launched successfully\n");
 
     // If bash launch failed, you can enter an infinite loop to prevent further
     // execution.
-
-    while (1)
-    {
-        schedule();
-    }
 }
 
 #define GUEST_STACK_SIZE2 1024
-/* Define the guest code to run (entry point) */
-
-// Guest stack (this will hold the guest's context)
 unsigned long guest_stack[GUEST_STACK_SIZE];
 
-// Function that launches bash in user space
+void vm_exit_entry(void)
+{
+    __asm__ volatile(
+        // Save general-purpose registers (64-bit explicitly)
+        "pushq %%rax\n\t"
+        "pushq %%rbx\n\t"
+        "pushq %%rcx\n\t"
+        "pushq %%rdx\n\t"
+        "pushq %%rsi\n\t"
+        "pushq %%rdi\n\t"
+        "pushq %%rbp\n\t"
+        "pushq %%r8\n\t"
+        "pushq %%r9\n\t"
+        "pushq %%r10\n\t"
+        "pushq %%r11\n\t"
+        "pushq %%r12\n\t"
+        "pushq %%r13\n\t"
+        "pushq %%r14\n\t"
+        "pushq %%r15\n\t"
+
+        // Save flags
+        "pushfq\n\t"
+
+        // Prepare structure for vm_exit_handler
+        "movq %%rsp, %%rdi\n\t" // Pass stack pointer as argument
+        "call vm_exit_handler\n\t"
+
+        // Restore flags
+        "popfq\n\t"
+
+        // Restore general-purpose registers
+        "popq %%r15\n\t"
+        "popq %%r14\n\t"
+        "popq %%r13\n\t"
+        "popq %%r12\n\t"
+        "popq %%r11\n\t"
+        "popq %%r10\n\t"
+        "popq %%r9\n\t"
+        "popq %%r8\n\t"
+        "popq %%rbp\n\t"
+        "popq %%rdi\n\t"
+        "popq %%rsi\n\t"
+        "popq %%rdx\n\t"
+        "popq %%rcx\n\t"
+        "popq %%rbx\n\t"
+        "popq %%rax\n\t"
+
+        // Resume execution of the VM
+        "vmresume\n\t"
+        "jmp .\n\t" // Infinite loop for safety
+        :
+        :
+        : "memory", "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15");
+}
+
 static void guest_entry(void)
 {
+    INT3();
+
     printk(KERN_INFO "Guest code execution starts\n");
     launch_bash();
 }
-
-static void enter_the_matrix(void)
+static void UNUSED_FUNCTION(EnterTheMatrix)(void)
 {
-    vmwrite(GUEST_CR0, vmreadz(HOST_CR0)); // Copy CR0 from host to guest
-    vmwrite(GUEST_CR3, vmreadz(HOST_CR3)); // Copy CR3 from host to guest
-    vmwrite(GUEST_CR4, vmreadz(HOST_CR4)); // Copy CR4 from host to guest
+
+    pr_info("Enter the matrix");
+
+    vmwrite(GUEST_CR0, vmreadz(HOST_CR0));
+    vmwrite(GUEST_CR3, vmreadz(HOST_CR3));
+    vmwrite(GUEST_CR4, vmreadz(HOST_CR4));
     vmwrite(GUEST_ES_SELECTOR, vmreadz(HOST_ES_SELECTOR));
     vmwrite(GUEST_CS_SELECTOR, vmreadz(HOST_CS_SELECTOR));
     vmwrite(GUEST_SS_SELECTOR, vmreadz(HOST_SS_SELECTOR));
@@ -230,10 +291,10 @@ static void enter_the_matrix(void)
         (void *)guest_entry; // Pointer to the guest entry code
     vmwrite(GUEST_RSP, (uint64_t)guest_stack_pointer);
     vmwrite(GUEST_RIP, (uint64_t)guest_code_pointer);
-    vmwrite(GUEST_RFLAGS, 2);     // Set some default flags (CF, ZF, etc.)
-    vmwrite(HOST_CR0, get_cr0()); // Ensure host CR0 is set correctly
-    vmwrite(HOST_CR3, get_cr3()); // Ensure host CR3 is set correctly
-    vmwrite(HOST_CR4, get_cr4()); // Ensure host CR4 is set correctly
+    vmwrite(GUEST_RFLAGS, 2);
+    vmwrite(HOST_CR0, get_cr0());
+    vmwrite(HOST_CR3, get_cr3());
+    vmwrite(HOST_CR4, get_cr4());
     vmwrite(HOST_ES_SELECTOR, get_es1());
     vmwrite(HOST_CS_SELECTOR, get_cs1());
     vmwrite(HOST_SS_SELECTOR, get_ss1());
@@ -242,7 +303,6 @@ static void enter_the_matrix(void)
     vmwrite(HOST_GS_SELECTOR, get_gs1());
     void *host_exit_rip = vm_exit_entry; // Exit entry code for the host
     vmwrite(HOST_RIP, (uint64_t)host_exit_rip);
-
     asm volatile("popq %r15\n\t"
                  "popq %r14\n\t"
                  "popq %r13\n\t"
@@ -261,7 +321,7 @@ static void enter_the_matrix(void)
                  "vmresume\n\t");
 }
 
-static void read_all_registers(struct __vmm_stack_t *stack)
+static void ReadAllRegs(struct __vmm_stack_t *stack)
 {
     pr_info("RAX = %llx\n", stack->rax);
     pr_info("RBX = %llx\n", stack->rbx);
@@ -283,14 +343,16 @@ static void read_all_registers(struct __vmm_stack_t *stack)
     pr_info("RFLAGS = %llx\n", stack->rflags);
     pr_info("RSP = %llx\n", stack->rsp);
     pr_info("SS = %llx\n", stack->ss);
+
+    pr_info("ExitReason = %x", vmExit_reason());
 }
 
 static void vm_exit_handler(struct __vmm_stack_t *stack)
 {
     pr_info("Handling vm exit");
-    read_all_registers(stack);
+    ReadAllRegs(stack);
 
-    uint32_t Vm_exit_reason = vmexit_reason();
+    uint32_t Vm_exit_reason = vmExit_reason();
 
     pr_info("RBX = %llx ", stack->rbx);
 
@@ -301,47 +363,52 @@ static void vm_exit_handler(struct __vmm_stack_t *stack)
         // HANDLE_CPUID();
 
         stack->rbx = 0x1779;
-        stack->r15 = 0xDEADBEEF;
+        stack->r14 = __pa(str);
         break;
 
     case EXIT_REASON_VMCALL:
         pr_info("VMCALL occurred");
-        pr_info("R15 = %llx ", stack->r15);
-        stack->r12 = HOST_RIP;
-        change_vmcs_field(stack);
+        pr_info("R15 = %llx ", stack->r14);
 
-        switch (stack->r15)
+        pr_info("str = %s", str);
+
+        switch (stack->r13)
         {
-            //     case 0x14:
-            //         read_virt_mem(stack);
-            //         break;
-            //     case 0x15:
-            //         write_virt_mem(stack);
-            //         break;
-            //     case 0x16:
-            //         launch_userland_binary(stack);
-            //         break;
-            //     case 0x17:
-            //         change_msr(stack);
-            //         break;
-            //     case 0x18:
-            //         change_cr(stack);
-            //         break;
-            //     case 0x19:
-            //         read_phys_mem(stack);
-            //         break;
-            //     case 0x1A:
-            //         write_phys_mem(stack);
-            //         break;
-            //     case 0x1B:
-            //         stop_execution(stack);
-            //         break;
-            //     case 0x1C:
-            //        change_vmcs_field(stack);
-            //         break;
-            //     case 0x1337:
-            //         enter_the_matrix();
-            //         break;
+        case 0x0:
+            read_virt_mem(stack);
+            break;
+        case 0x1:
+            write_virt_mem(stack);
+            break;
+        case 0x2:
+            launch_userland_binary(stack);
+            break;
+        case 0x3:
+            change_msr(stack);
+            break;
+        case 0x4:
+            change_cr(stack);
+            break;
+        case 0x5:
+            read_phys_mem(stack);
+            break;
+        case 0x6:
+            write_phys_mem(stack);
+            break;
+        case 0x7:
+            stop_execution(stack);
+            break;
+        case 0x8:
+            change_vmcs_field(stack);
+            break;
+        case 0xDEADBEEF:
+            // launch_bash();
+            // while (1) {
+            //   schedule();
+            // }
+
+            // EnterTheMatrix();
+            break;
         default:
             break;
         }
@@ -363,14 +430,14 @@ static void vm_exit_handler(struct __vmm_stack_t *stack)
 
 // CH 23.6, Vol 3
 // Checking the support of VMX
-static bool vmx_support(void)
+static bool vmxSupport(void)
 {
 
-    int get_vmx_support, vmxBit;
+    int getVmxSupport, vmxBit;
     __asm__("mov $1, %rax");
     __asm__("cpuid");
-    __asm__("mov %%ecx , %0\n\t" : "=r"(get_vmx_support));
-    vmxBit = (get_vmx_support >> 5) & 1;
+    __asm__("mov %%ecx , %0\n\t" : "=r"(getVmxSupport));
+    vmxBit = (getVmxSupport >> 5) & 1;
     if (vmxBit == 1)
     {
         return true;
@@ -384,7 +451,7 @@ static bool vmx_support(void)
 
 // CH 23.7, Vol 3
 // Enter in VMX mode
-static bool get_vmx_operation(void)
+static bool getVmxOperation(void)
 {
     // unsigned long cr0;
     unsigned long cr4;
@@ -429,14 +496,14 @@ static bool get_vmx_operation(void)
     __asm__ __volatile__("mov %0, %%cr4" : : "r"(cr4) : "memory");
 
     // allocating 4kib((4096 bytes) of memory for vmxon region
-    vmxon_region = kzalloc(MYPAGE_SIZE, GFP_KERNEL);
-    if (vmxon_region == NULL)
+    vmxonRegion = kzalloc(MYPAGE_SIZE, GFP_KERNEL);
+    if (vmxonRegion == NULL)
     {
         printk(KERN_INFO "Error allocating vmxon region\n");
         return false;
     }
-    vmxon_phy_region = __pa(vmxon_region);
-    *(uint32_t *)vmxon_region = vmcs_revision_id();
+    vmxon_phy_region = __pa(vmxonRegion);
+    *(uint32_t *)vmxonRegion = vmcs_revision_id();
     if (_vmxon(vmxon_phy_region))
         return false;
     return true;
@@ -444,13 +511,13 @@ static bool get_vmx_operation(void)
 
 // CH 24.2, Vol 3
 // allocating VMCS region
-static bool vmcs_operations(void)
+static bool vmcsOperations(void)
 {
-    long int vmcs_phy_region = 0;
-    if (alloc_vmcs_region())
+    long int vmcsPhyRegion = 0;
+    if (allocVmcsRegion())
     {
-        vmcs_phy_region = __pa(vmcs_region);
-        *(uint32_t *)vmcs_region = vmcs_revision_id();
+        vmcsPhyRegion = __pa(vmcsRegion);
+        *(uint32_t *)vmcsRegion = vmcs_revision_id();
     }
     else
     {
@@ -458,26 +525,28 @@ static bool vmcs_operations(void)
     }
 
     // making the vmcs active and current
-    if (_vmptrld(vmcs_phy_region))
+    if (_vmptrld(vmcsPhyRegion))
         return false;
     return true;
 }
 
 struct ept_entry
 {
-    uint64_t addr : 52;    // Adresse physique (bits 0-51)
-    uint64_t perm : 3;     // Permissions (bits 52-54)
-    uint64_t reserved : 9; // Bits réservés (bits 55-63)
+    uint64_t addr : 52;
+    uint64_t perm : 3;
+    uint64_t reserved : 9;
 };
 
-#define EPT_READ 0x1    // Lecture autorisée
-#define EPT_WRITE 0x2   // Écriture autorisée
-#define EPT_EXECUTE 0x4 // Exécution autorisée
+#define EPT_READ 0x1
+#define EPT_WRITE 0x2
+#define EPT_EXECUTE 0x4
 
-static bool map_all_physical_memory(void)
+static bool UNUSED_FUNCTION(map_all_physical_memory)(void)
 {
+
+    pr_info("will map");
     uint64_t max_physical_address =
-        0x100000000;                // Taille max de la mémoire physique (4 Go)
+        0x100000;                   // Taille max de la mémoire physique (4 Go)
     uint64_t page_size = PAGE_SIZE; // Taille d'une page (4 Ko)
 
     pr_info("map all phys");
@@ -503,13 +572,12 @@ static bool map_all_physical_memory(void)
     uint64_t ept_pointer = __pa(ept_table) | (3 << 3); // Niveau de cache EPT
     vmwrite(EPT_POINTER, ept_pointer);
 
-    pr_info("EPT configurée : toute la mémoire physique exposée au guest.\n");
     return true;
 }
 
 // CH 26.2.1, Vol 3
 // Initializing VMCS control field
-static bool init_vmcs_control_field(void)
+static bool initVmcsControlField(void)
 {
     // checking of any of the default1 controls may be 0:
     // not doing it for now.
@@ -670,185 +738,32 @@ static bool init_vmcs_control_field(void)
     unsigned long guest_stack[GUEST_STACK_SIZE];
     costum_rsp = &guest_stack[GUEST_STACK_SIZE];
 
-    // map_all_physical_memory();
     void *host_rip = vm_exit_entry;
     vmwrite(HOST_RIP, (uint64_t)host_rip);
 
-    unsigned char opcodes[] = {
-        0x48,
-        0xb8,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xbb,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xb9,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xba,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xbe,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xbf,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xbd,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xbc,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xb8,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xb9,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xba,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xbb,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xbc,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xbd,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xbe,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x49,
-        0xbf,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x48,
-        0xbb,
-        0xef,
-        0xbe,
-        0xad,
-        0xde,
-        0x00,
-        0x00,
-        0x00,
-        0x00,
-        0x0f,
-        0x01,
-        0xc1,
-    };
+    //  unsigned char opcodes[] = {
+    //      0x48, 0xb8, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48,
+    //      0xbb, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xb9,
+    //      0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xba, 0xef,
+    //      0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbe, 0xef, 0xbe,
+    //      0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbf, 0xef, 0xbe, 0xad,
+    //      0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbd, 0xef, 0xbe, 0xad, 0xde,
+    //      0x00, 0x00, 0x00, 0x00, 0x48, 0xbc, 0xef, 0xbe, 0xad, 0xde, 0x00,
+    //      0x00, 0x00, 0x00, 0x49, 0xb8, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00,
+    //      0x00, 0x00, 0x49, 0xb9, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00,
+    //      0x00, 0x49, 0xba, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00,
+    //      0x49, 0xbb, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49,
+    //      0xbc, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0xbd,
+    //      0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0xbe, 0xef,
+    //      0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0xbf, 0xef, 0xbe,
+    //      0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbb, 0xef, 0xbe, 0xad,
+    //      0xde, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xa2, 0x0f, 0x01, 0xc1,
+    //  };
+
+    unsigned char opcodes[26] = {0x49, 0xc7, 0xc6, 0x06, 0x00, 0x00, 0x00,
+                                 0x49, 0xc7, 0xc4, 0x70, 0x76, 0x02, 0x00,
+                                 0x48, 0xc7, 0xc1, 0x19, 0x49, 0x00, 0x00,
+                                 0x0f, 0x01, 0xc1, 0x0f, 0x32};
 
     unsigned long addr = alloc();
 
@@ -858,7 +773,7 @@ static bool init_vmcs_control_field(void)
 
     pr_info("rw setup");
 
-    memcpy((void *)addr, opcodes, 173);
+    memcpy((void *)addr, opcodes, 26);
 
     pr_info("mmcpy");
 
@@ -870,16 +785,12 @@ static bool init_vmcs_control_field(void)
     vmwrite(GUEST_RSP, (uint64_t)costum_rsp);
     vmwrite(GUEST_RIP, (uint64_t)costum_rip);
 
+    // map_all_physical_memory();
+
     return true;
 }
 
-static void __exit end_exit(void)
-{
-    printk(KERN_INFO "Unloading the driver\n");
-    return;
-}
-
-static bool vmxoff_operation(void)
+static bool vmxoffOperation(void)
 {
     if (deallocate_vmxon_region())
     {
@@ -901,7 +812,7 @@ static bool vmxoff_operation(void)
     return true;
 }
 
-static bool init_vmlaunch_process(void)
+static bool initVmLaunchProcess(void)
 {
     int vmlaunch_status = _vmlaunch();
     if (vmlaunch_status != 0)
@@ -913,13 +824,13 @@ static bool init_vmlaunch_process(void)
     return true;
 }
 
-int hypervisor_init(void)
+static int hypervisor_init(void)
 {
 
-    set_memory_rw_cust = (set_memory_rw_fn)get_proc_addr("set_memory_rw");
-    set_memory_rox_cust = (set_memory_rox_fn)get_proc_addr("set_memory_rox");
+    set_memory_rw_cust = (set_memory_rw_fn)GetProcAddr("set_memory_rw");
+    set_memory_rox_cust = (set_memory_rox_fn)GetProcAddr("set_memory_rox");
 
-    if (!vmx_support())
+    if (!vmxSupport())
     {
         printk(KERN_INFO "VMX support not present! EXITING");
         return 0;
@@ -928,7 +839,7 @@ int hypervisor_init(void)
     {
         printk(KERN_INFO "VMX support present! CONTINUING");
     }
-    if (!get_vmx_operation())
+    if (!getVmxOperation())
     {
         printk(KERN_INFO "VMX Operation failed! EXITING");
         return 0;
@@ -937,7 +848,7 @@ int hypervisor_init(void)
     {
         printk(KERN_INFO "VMX Operation succeeded! CONTINUING");
     }
-    if (!vmcs_operations())
+    if (!vmcsOperations())
     {
         printk(KERN_INFO "VMCS Allocation failed! EXITING");
         return 0;
@@ -946,7 +857,7 @@ int hypervisor_init(void)
     {
         printk(KERN_INFO "VMCS Allocation succeeded! CONTINUING");
     }
-    if (!init_vmcs_control_field())
+    if (!initVmcsControlField())
     {
         printk(KERN_INFO "Initialization of VMCS Control field failed! EXITING");
         return 0;
@@ -956,7 +867,7 @@ int hypervisor_init(void)
         printk(KERN_INFO "Initializing of control fields to the most basic "
                          "settings succeeded! CONTINUING");
     }
-    if (!init_vmlaunch_process())
+    if (!initVmLaunchProcess())
     {
         printk(KERN_INFO "VMLAUNCH failed! EXITING");
         return 0;
@@ -966,7 +877,7 @@ int hypervisor_init(void)
         printk(KERN_INFO "VMLAUNCH succeeded! CONTINUING");
     }
 
-    if (!vmxoff_operation())
+    if (!vmxoffOperation())
     {
         printk(KERN_INFO "VMXOFF operation failed! EXITING");
         return 0;
@@ -976,40 +887,4 @@ int hypervisor_init(void)
         printk(KERN_INFO "VMXOFF Operation succeeded! CONTINUING\n");
     }
     return 0;
-}
-
-// TODO: Remove this function
-static void UNUSED_FUNCTION(useless)(void)
-{
-    struct __vmm_stack_t stack = {
-        .r15 = 0,
-        .r14 = 0,
-        .r13 = 0,
-        .r12 = 0,
-        .r11 = 0,
-        .r10 = 0,
-        .r9 = 0,
-        .r8 = 0,
-        .rbp = 0,
-        .rdi = 0,
-        .rsi = 0,
-        .rdx = 0,
-        .rcx = 0,
-        .rbx = 0,
-        .rax = 0,
-        .int_no = 0,
-        .err_code = 0,
-        .rip = 0,
-        .cs = 0,
-        .rflags = 0,
-        .rsp = 0,
-        .ss = 0,
-    };
-
-    vm_exit_handler(&stack);
-    map_all_physical_memory();
-    end_exit();
-    hypervisor_init();
-    enter_the_matrix();
-    debug(0);
 }

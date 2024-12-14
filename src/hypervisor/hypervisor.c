@@ -1,35 +1,16 @@
 #include <linux/kprobes.h>
-
 #include "hypervisor.h"
 #include "exit_reason.h"
 #include "macros.h"
 #include "utils.h"
 
-extern void read_virt_mem(struct __vmm_stack_t *stack);
-extern void write_virt_mem(struct __vmm_stack_t *stack);
-extern void launch_userland_binary(struct __vmm_stack_t *stack);
-extern void change_msr(struct __vmm_stack_t *stack);
-extern void change_cr(struct __vmm_stack_t *stack);
-extern void read_phys_mem(struct __vmm_stack_t *stack);
-extern void write_phys_mem(struct __vmm_stack_t *stack);
-extern void stop_execution(struct __vmm_stack_t *stack);
-extern void change_vmcs_field(struct __vmm_stack_t *stack);
-extern void vm_exit_entry(void);
-extern void vm_exit_handler(struct __vmm_stack_t *stack);
-extern int hypervisor_init(void);
+#define HYPERVISOR_VERSION "0.1"
 
-#define INT3() asm volatile("int3\n\t");
-#define GUEST_STACK_SIZE 64
-#define VMX_VMEXIT_INSTRUCTION_LENGTH 0x440C
+static int kallsyms_found = 0;
+static unsigned long kallsyms_addr = 0;
 
-typedef int (*set_memory_rw_fn)(unsigned long addr, int numpages);
-typedef int (*set_memory_rox_fn)(unsigned long addr, int numpages);
+typedef unsigned long (*kallsyms_lookup_name_fn)(const char *name);
 
-static set_memory_rw_fn set_memory_rw_cust = NULL;
-static set_memory_rox_fn set_memory_rox_cust = NULL;
-extern void guest_code(void);
-
-char str[] = "hello";
 static void set_mem_rw(unsigned long addr)
 {
     int num_pages = 1;
@@ -37,6 +18,7 @@ static void set_mem_rw(unsigned long addr)
     set_memory_rw_cust(addr, num_pages);
     return;
 }
+
 static void set_mem_rx(unsigned long addr)
 {
     int num_pages = 1;
@@ -90,11 +72,6 @@ static void adjust_rip(void)
     pr_info("INS leng = %llx, Guest rip = %llx ", instruction_length, rip);
 }
 
-static int kallsyms_finded = 0;
-static unsigned long kallsyms_addr = 0;
-
-typedef unsigned long (*kallsyms_lookup_name_fn)(const char *name);
-
 /* Helper: Create a kprobe for the given symbol and get its address */
 static unsigned long probe_function_address(const char *symbol_name)
 {
@@ -132,15 +109,15 @@ static unsigned long probe_function_address(const char *symbol_name)
     return address;
 }
 
-/* Function: GetProcAddr */
-static unsigned long GetProcAddr(const char *function_name)
+/* Function: get_proc_address */
+static unsigned long get_proc_address(const char *function_name)
 {
     unsigned long address = 0;
 
     /* Check if kallsyms_lookup_name has been resolved */
-    if (kallsyms_finded == 0)
+    if (kallsyms_found == 0)
     {
-        kallsyms_finded = 1; /* Mark as searched */
+        kallsyms_found = 1; /* Mark as searched */
         kallsyms_addr = probe_function_address("kallsyms_lookup_name");
         if (!kallsyms_addr)
         {
@@ -167,6 +144,7 @@ static unsigned long GetProcAddr(const char *function_name)
     printk(KERN_ERR "Failed to resolve symbol: %s\n", function_name);
     return 0;
 }
+
 static void UNUSED_FUNCTION(debug)(uint64_t vmcs_field)
 {
 
@@ -175,35 +153,13 @@ static void UNUSED_FUNCTION(debug)(uint64_t vmcs_field)
     pr_info("VMCS_FIELD :: %llx = %llx", vmcs_field, res);
     return;
 }
-static uint32_t vmExit_reason(void)
+
+static uint32_t vmexit_reason(void)
 {
     uint32_t exit_reason = vmreadz(VM_EXIT_REASON);
     exit_reason = exit_reason & 0xffff;
     return exit_reason;
 }
-
-static void launch_bash(void)
-{
-    // Prepare arguments for bash
-    char *bash_argv[] = {"/bin/sh", NULL};
-    char *bash_envp[] = {NULL};
-
-    printk(KERN_INFO "Launching bash from guest environment\n");
-
-    // This function executes the user-space program using kernel facilities
-    int ret = call_usermodehelper("/bin/sh", bash_argv, bash_envp, UMH_WAIT_PROC);
-
-    if (ret)
-        printk(KERN_ERR "Failed to launch bash: %d\n", ret);
-    else
-        printk(KERN_INFO "Bash launched successfully\n");
-
-    // If bash launch failed, you can enter an infinite loop to prevent further
-    // execution.
-}
-
-#define GUEST_STACK_SIZE2 1024
-unsigned long guest_stack[GUEST_STACK_SIZE];
 
 void vm_exit_entry(void)
 {
@@ -263,13 +219,11 @@ void vm_exit_entry(void)
 static void guest_entry(void)
 {
     INT3();
-
     printk(KERN_INFO "Guest code execution starts\n");
-    launch_bash();
 }
-static void UNUSED_FUNCTION(EnterTheMatrix)(void)
-{
 
+static void UNUSED_FUNCTION(enter_the_matrix)(void)
+{
     pr_info("Enter the matrix");
 
     vmwrite(GUEST_CR0, vmreadz(HOST_CR0));
@@ -292,6 +246,7 @@ static void UNUSED_FUNCTION(EnterTheMatrix)(void)
     void *guest_stack_pointer = (void *)GUEST_STACK_SIZE;
     void *guest_code_pointer =
         (void *)guest_entry; // Pointer to the guest entry code
+
     vmwrite(GUEST_RSP, (uint64_t)guest_stack_pointer);
     vmwrite(GUEST_RIP, (uint64_t)guest_code_pointer);
     vmwrite(GUEST_RFLAGS, 2);
@@ -304,7 +259,9 @@ static void UNUSED_FUNCTION(EnterTheMatrix)(void)
     vmwrite(HOST_DS_SELECTOR, get_ds1());
     vmwrite(HOST_FS_SELECTOR, get_fs1());
     vmwrite(HOST_GS_SELECTOR, get_gs1());
+
     void *host_exit_rip = vm_exit_entry; // Exit entry code for the host
+
     vmwrite(HOST_RIP, (uint64_t)host_exit_rip);
     asm volatile("popq %r15\n\t"
                  "popq %r14\n\t"
@@ -324,7 +281,7 @@ static void UNUSED_FUNCTION(EnterTheMatrix)(void)
                  "vmresume\n\t");
 }
 
-static void ReadAllRegs(struct __vmm_stack_t *stack)
+static void read_all_registers(struct __vmm_stack_t *stack)
 {
     pr_info("RAX = %llx\n", stack->rax);
     pr_info("RBX = %llx\n", stack->rbx);
@@ -347,33 +304,28 @@ static void ReadAllRegs(struct __vmm_stack_t *stack)
     pr_info("RSP = %llx\n", stack->rsp);
     pr_info("SS = %llx\n", stack->ss);
 
-    pr_info("ExitReason = %x", vmExit_reason());
+    pr_info("ExitReason = %x", vmexit_reason());
 }
 
 extern void vm_exit_handler(struct __vmm_stack_t *stack)
 {
     pr_info("Handling vm exit");
-    ReadAllRegs(stack);
+    read_all_registers(stack);
 
-    uint32_t Vm_exit_reason = vmExit_reason();
+    uint32_t vm_exit_reason = vmexit_reason();
 
     pr_info("RBX = %llx ", stack->rbx);
 
-    switch (Vm_exit_reason)
+    switch (vm_exit_reason)
     {
     case EXIT_REASON_CPUID:
         pr_info("CPUID occurred");
-        // HANDLE_CPUID();
-
         stack->rbx = 0x1779;
-        stack->r14 = __pa(str);
         break;
 
     case EXIT_REASON_VMCALL:
         pr_info("VMCALL occurred");
         pr_info("R15 = %llx ", stack->r14);
-
-        pr_info("str = %s", str);
 
         switch (stack->r13)
         {
@@ -410,7 +362,7 @@ extern void vm_exit_handler(struct __vmm_stack_t *stack)
             //   schedule();
             // }
 
-            // EnterTheMatrix();
+            // enter_the_matrix();
             break;
         default:
             break;
@@ -433,28 +385,22 @@ extern void vm_exit_handler(struct __vmm_stack_t *stack)
 
 // CH 23.6, Vol 3
 // Checking the support of VMX
-static bool vmxSupport(void)
+static bool is_vmx_supported(void)
 {
+    int vmx_supported, vmx_bit;
 
-    int getVmxSupport, vmxBit;
     __asm__("mov $1, %rax");
     __asm__("cpuid");
-    __asm__("mov %%ecx , %0\n\t" : "=r"(getVmxSupport));
-    vmxBit = (getVmxSupport >> 5) & 1;
-    if (vmxBit == 1)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-    return false;
+    __asm__("mov %%ecx , %0\n\t" : "=r"(vmx_supported));
+
+    vmx_bit = (vmx_supported >> 5) & 1;
+
+    return (vmx_bit == 1);
 }
 
 // CH 23.7, Vol 3
 // Enter in VMX mode
-static bool getVmxOperation(void)
+static bool get_vmx_operation(void)
 {
     // unsigned long cr0;
     unsigned long cr4;
@@ -499,14 +445,14 @@ static bool getVmxOperation(void)
     __asm__ __volatile__("mov %0, %%cr4" : : "r"(cr4) : "memory");
 
     // allocating 4kib((4096 bytes) of memory for vmxon region
-    vmxonRegion = kzalloc(MYPAGE_SIZE, GFP_KERNEL);
-    if (vmxonRegion == NULL)
+    vmxon_region = kzalloc(MYPAGE_SIZE, GFP_KERNEL);
+    if (vmxon_region == NULL)
     {
         printk(KERN_INFO "Error allocating vmxon region\n");
         return false;
     }
-    vmxon_phy_region = __pa(vmxonRegion);
-    *(uint32_t *)vmxonRegion = vmcs_revision_id();
+    vmxon_phy_region = __pa(vmxon_region);
+    *(uint32_t *)vmxon_region = vmcs_revision_id();
     if (_vmxon(vmxon_phy_region))
         return false;
     return true;
@@ -514,73 +460,27 @@ static bool getVmxOperation(void)
 
 // CH 24.2, Vol 3
 // allocating VMCS region
-static bool vmcsOperations(void)
+static bool vmcs_operation(void)
 {
     long int vmcsPhyRegion = 0;
-    if (allocVmcsRegion())
+    if (alloc_vmcs_region())
     {
-        vmcsPhyRegion = __pa(vmcsRegion);
-        *(uint32_t *)vmcsRegion = vmcs_revision_id();
+        vmcsPhyRegion = __pa(vmcs_region);
+        *(uint32_t *)vmcs_region = vmcs_revision_id();
     }
     else
-    {
         return false;
-    }
 
     // making the vmcs active and current
     if (_vmptrld(vmcsPhyRegion))
         return false;
-    return true;
-}
-
-struct ept_entry
-{
-    uint64_t addr : 52;
-    uint64_t perm : 3;
-    uint64_t reserved : 9;
-};
-
-#define EPT_READ 0x1
-#define EPT_WRITE 0x2
-#define EPT_EXECUTE 0x4
-
-static bool UNUSED_FUNCTION(map_all_physical_memory)(void)
-{
-
-    pr_info("will map");
-    uint64_t max_physical_address =
-        0x100000;                   // Taille max de la mémoire physique (4 Go)
-    uint64_t page_size = PAGE_SIZE; // Taille d'une page (4 Ko)
-
-    pr_info("map all phys");
-    // Allouer une table EPT
-    struct ept_entry *ept_table = kzalloc(PAGE_SIZE, GFP_KERNEL);
-    if (!ept_table)
-    {
-        pr_err("Impossible d'allouer la table EPT\n");
-        return false;
-    }
-
-    // Mapper chaque page physique dans l'EPT
-    for (uint64_t addr = 0; addr < max_physical_address; addr += page_size)
-    {
-        uint64_t index = addr / page_size;
-
-        ept_table[index].addr = addr >> PAGE_SHIFT; // Adresse physique
-        ept_table[index].perm =
-            EPT_READ | EPT_WRITE | EPT_EXECUTE; // Permissions totales
-    }
-
-    // Charger l'EPT dans le VMCS
-    uint64_t ept_pointer = __pa(ept_table) | (3 << 3); // Niveau de cache EPT
-    vmwrite(EPT_POINTER, ept_pointer);
 
     return true;
 }
 
 // CH 26.2.1, Vol 3
 // Initializing VMCS control field
-static bool initVmcsControlField(void)
+static bool init_vmcs_control_field(void)
 {
     // checking of any of the default1 controls may be 0:
     // not doing it for now.
@@ -734,6 +634,7 @@ static bool initVmcsControlField(void)
     vmwrite(GUEST_RFLAGS, 2);
     vmwrite(GUEST_SYSENTER_ESP, vmreadz(HOST_IA32_SYSENTER_ESP));
     vmwrite(GUEST_SYSENTER_EIP, vmreadz(HOST_IA32_SYSENTER_EIP));
+
     // setting up rip and rsp for guest
     void *costum_rip;
     void *costum_rsp;
@@ -744,56 +645,26 @@ static bool initVmcsControlField(void)
     void *host_rip = vm_exit_entry;
     vmwrite(HOST_RIP, (uint64_t)host_rip);
 
-    //  unsigned char opcodes[] = {
-    //      0x48, 0xb8, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48,
-    //      0xbb, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xb9,
-    //      0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xba, 0xef,
-    //      0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbe, 0xef, 0xbe,
-    //      0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbf, 0xef, 0xbe, 0xad,
-    //      0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbd, 0xef, 0xbe, 0xad, 0xde,
-    //      0x00, 0x00, 0x00, 0x00, 0x48, 0xbc, 0xef, 0xbe, 0xad, 0xde, 0x00,
-    //      0x00, 0x00, 0x00, 0x49, 0xb8, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00,
-    //      0x00, 0x00, 0x49, 0xb9, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00,
-    //      0x00, 0x49, 0xba, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00,
-    //      0x49, 0xbb, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49,
-    //      0xbc, 0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0xbd,
-    //      0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0xbe, 0xef,
-    //      0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0xbf, 0xef, 0xbe,
-    //      0xad, 0xde, 0x00, 0x00, 0x00, 0x00, 0x48, 0xbb, 0xef, 0xbe, 0xad,
-    //      0xde, 0x00, 0x00, 0x00, 0x00, 0x0f, 0xa2, 0x0f, 0x01, 0xc1,
-    //  };
-
-    unsigned char opcodes[26] = {0x49, 0xc7, 0xc6, 0x06, 0x00, 0x00, 0x00,
-                                 0x49, 0xc7, 0xc4, 0x70, 0x76, 0x02, 0x00,
-                                 0x48, 0xc7, 0xc1, 0x19, 0x49, 0x00, 0x00,
-                                 0x0f, 0x01, 0xc1, 0x0f, 0x32};
-
     unsigned long addr = alloc();
 
     pr_info("Allocate at %lu", addr);
-
     set_mem_rw(addr);
 
     pr_info("rw setup");
-
-    memcpy((void *)addr, opcodes, 26);
+    // memcpy((void *)addr, opcodes, 26);
 
     pr_info("mmcpy");
-
     set_mem_rx(addr);
 
     pr_info("set_rx");
-
     costum_rip = (void *)addr;
     vmwrite(GUEST_RSP, (uint64_t)costum_rsp);
     vmwrite(GUEST_RIP, (uint64_t)costum_rip);
 
-    // map_all_physical_memory();
-
     return true;
 }
 
-static bool vmxoffOperation(void)
+static bool vmxoff_operation(void)
 {
     if (deallocate_vmxon_region())
     {
@@ -815,7 +686,7 @@ static bool vmxoffOperation(void)
     return true;
 }
 
-static bool initVmLaunchProcess(void)
+static bool init_vmlaunch_process(void)
 {
     int vmlaunch_status = _vmlaunch();
     if (vmlaunch_status != 0)
@@ -830,64 +701,44 @@ static bool initVmLaunchProcess(void)
 extern int hypervisor_init(void)
 {
 
-    set_memory_rw_cust = (set_memory_rw_fn)GetProcAddr("set_memory_rw");
-    set_memory_rox_cust = (set_memory_rox_fn)GetProcAddr("set_memory_rox");
+    set_memory_rw_cust = (set_memory_rw_fn)get_proc_address("set_memory_rw");
+    set_memory_rox_cust = (set_memory_rox_fn)get_proc_address("set_memory_rox");
 
-    if (!vmxSupport())
+    if (!is_vmx_supported())
     {
         printk(KERN_INFO "VMX support not present! EXITING");
         return 0;
     }
-    else
-    {
-        printk(KERN_INFO "VMX support present! CONTINUING");
-    }
-    if (!getVmxOperation())
+
+    if (!get_vmx_operation())
     {
         printk(KERN_INFO "VMX Operation failed! EXITING");
         return 0;
     }
-    else
-    {
-        printk(KERN_INFO "VMX Operation succeeded! CONTINUING");
-    }
-    if (!vmcsOperations())
+
+    if (!vmcs_operation())
     {
         printk(KERN_INFO "VMCS Allocation failed! EXITING");
         return 0;
     }
-    else
-    {
-        printk(KERN_INFO "VMCS Allocation succeeded! CONTINUING");
-    }
-    if (!initVmcsControlField())
+
+    if (!init_vmcs_control_field())
     {
         printk(KERN_INFO "Initialization of VMCS Control field failed! EXITING");
         return 0;
     }
-    else
-    {
-        printk(KERN_INFO "Initializing of control fields to the most basic "
-                         "settings succeeded! CONTINUING");
-    }
-    if (!initVmLaunchProcess())
+
+    if (!init_vmlaunch_process())
     {
         printk(KERN_INFO "VMLAUNCH failed! EXITING");
         return 0;
     }
-    else
-    {
-        printk(KERN_INFO "VMLAUNCH succeeded! CONTINUING");
-    }
 
-    if (!vmxoffOperation())
+    if (!vmxoff_operation())
     {
         printk(KERN_INFO "VMXOFF operation failed! EXITING");
         return 0;
     }
-    else
-    {
-        printk(KERN_INFO "VMXOFF Operation succeeded! CONTINUING\n");
-    }
+
     return 0;
 }

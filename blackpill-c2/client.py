@@ -9,6 +9,8 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 
+SIGNATURE = bytes([0xDE, 0xAD, 0xBE, 0xEF])
+
 console = Console()
 
 # Command registry
@@ -255,7 +257,9 @@ def execute_command(sock: socket.socket, command: str, args: List[str]) -> None:
 
 
 def send_to_server(sock: socket.socket, payload: bytes) -> None:
-    """Send data to the server and display the response."""
+    """Send data to the server and display the response.
+    Adds a signature to the payload to ensure it's coming from the client."""
+    payload = SIGNATURE + payload
     sock.send(payload)
     response = sock.recv(4096)
     console.print(f"[bold green]->[/bold green] {response.hex()}")

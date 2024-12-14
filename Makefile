@@ -1,5 +1,5 @@
 obj-m := blackpill.o
-blackpill-y := src/lib.o src/hypervisor/hypercapa.o src/hypervisor/hypervisor.o
+blackpill-y := src/lib.o src/hypervisor/capabilities.o src/hypervisor/hypervisor.o
 
 CC = clang
 ARCH ?= x86_64

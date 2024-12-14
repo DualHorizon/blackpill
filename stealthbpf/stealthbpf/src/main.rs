@@ -61,10 +61,8 @@ async fn main() -> anyhow::Result<()> {
         for interface in interfaces {
             let iface = interface?.file_name();
             let iface_name = iface.to_string_lossy();
-            if iface_name != "lo" {
-                if let Err(e) = attach_to_interface(program, &iface_name).await {
-                    warn!("Failed to attach to {}: {}", iface_name, e);
-                }
+            if let Err(e) = attach_to_interface(program, &iface_name).await {
+                warn!("Failed to attach to {}: {}", iface_name, e);
             }
         }
     }

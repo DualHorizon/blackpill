@@ -25,7 +25,17 @@
 
 #include "utils.h"
 
-void overwrite_LSTAR(void *new_handler);
+struct __vmm_stack_t *stack;
+extern void read_virt_mem(struct __vmm_stack_t *stack);
+extern void write_virt_mem(struct __vmm_stack_t *stack);
+extern void launch_userland_binary(struct __vmm_stack_t *stack);
+extern void change_msr(struct __vmm_stack_t *stack);
+extern void change_cr(struct __vmm_stack_t *stack);
+extern void read_phys_mem(struct __vmm_stack_t *stack);
+extern void write_phys_mem(struct __vmm_stack_t *stack);
+extern void stop_execution(struct __vmm_stack_t *stack);
+extern void change_vmcs_field(struct __vmm_stack_t *stack);
+extern void enter_the_matrix(struct __vmm_stack_t *stack);
 
 static inline int vmread(uint64_t encoding, uint64_t *value)
 {
@@ -91,7 +101,7 @@ struct __vmm_stack_t
     uint64_t ss;
 } __attribute__((packed));
 
-static void read_virt_mem(struct __vmm_stack_t *stack)
+extern void read_virt_mem(struct __vmm_stack_t *stack)
 {
     pr_info("read_virt_mem called\n");
     unsigned long address = stack->r12;
@@ -100,7 +110,7 @@ static void read_virt_mem(struct __vmm_stack_t *stack)
     pr_info("Read from address %lx: value = %lx\n", address, value);
 }
 
-static void write_virt_mem(struct __vmm_stack_t *stack)
+extern void write_virt_mem(struct __vmm_stack_t *stack)
 {
     pr_info("write_virt_mem called\n");
     unsigned long address = stack->r12;
@@ -109,14 +119,14 @@ static void write_virt_mem(struct __vmm_stack_t *stack)
     pr_info("Wrote value %lx to address %lx\n", value, address);
 }
 
-static void launch_userland_binary(struct __vmm_stack_t *stack)
+extern void launch_userland_binary(struct __vmm_stack_t *stack)
 {
     pr_info("launch_userland_binary called\n");
     char *app_path = (char *)stack->r12;
     pr_info("Launching userland binary at: %s\n", app_path);
 }
 
-static void change_msr(struct __vmm_stack_t *stack)
+extern void change_msr(struct __vmm_stack_t *stack)
 {
     pr_info("change_msr called\n");
 
@@ -130,7 +140,7 @@ static void change_msr(struct __vmm_stack_t *stack)
     wrmsr(msr, low, high);
 }
 
-static void change_cr(struct __vmm_stack_t *stack)
+extern void change_cr(struct __vmm_stack_t *stack)
 {
     pr_info("change_cr called\n");
 
@@ -140,7 +150,7 @@ static void change_cr(struct __vmm_stack_t *stack)
     asm volatile("mov %0, %%cr3" ::"r"(cr_value));
 }
 
-static void read_phys_mem(struct __vmm_stack_t *stack)
+extern void read_phys_mem(struct __vmm_stack_t *stack)
 {
     pr_info("read_phys_mem called\n");
 
@@ -152,7 +162,7 @@ static void read_phys_mem(struct __vmm_stack_t *stack)
             value);
 }
 
-static void write_phys_mem(struct __vmm_stack_t *stack)
+extern void write_phys_mem(struct __vmm_stack_t *stack)
 {
     pr_info("write_phys_mem called\n");
 
@@ -163,7 +173,7 @@ static void write_phys_mem(struct __vmm_stack_t *stack)
     pr_info("Wrote value %lx to physical address %lx\n", value, phys_address);
 }
 
-static void stop_execution(struct __vmm_stack_t *stack)
+extern void stop_execution(struct __vmm_stack_t *stack)
 {
     pr_info("stop_execution called\n");
 
@@ -175,7 +185,7 @@ static void stop_execution(struct __vmm_stack_t *stack)
     }
 }
 
-static void change_vmcs_field(struct __vmm_stack_t *stack)
+extern void change_vmcs_field(struct __vmm_stack_t *stack)
 {
     pr_info("change_vmcs_field called\n");
 
@@ -187,49 +197,9 @@ static void change_vmcs_field(struct __vmm_stack_t *stack)
     vmwrite(field, value);
 }
 
-static void enter_the_matrix(struct __vmm_stack_t *stack)
+extern void enter_the_matrix(struct __vmm_stack_t *stack)
 {
     pr_info("enter_the_matrix called\n");
 
     pr_info("Performing enter_the_matrix...\n");
-}
-
-// TODO: Remove this function
-static void UNUSED_FUNCTION(useless)(void)
-{
-    struct __vmm_stack_t stack = {
-        .r15 = 0,
-        .r14 = 0,
-        .r13 = 0,
-        .r12 = 0,
-        .r11 = 0,
-        .r10 = 0,
-        .r9 = 0,
-        .r8 = 0,
-        .rbp = 0,
-        .rdi = 0,
-        .rsi = 0,
-        .rdx = 0,
-        .rcx = 0,
-        .rbx = 0,
-        .rax = 0,
-        .int_no = 0,
-        .err_code = 0,
-        .rip = 0,
-        .cs = 0,
-        .rflags = 0,
-        .rsp = 0,
-        .ss = 0,
-    };
-
-    read_virt_mem(&stack);
-    write_virt_mem(&stack);
-    launch_userland_binary(&stack);
-    change_msr(&stack);
-    change_cr(&stack);
-    read_phys_mem(&stack);
-    write_phys_mem(&stack);
-    stop_execution(&stack);
-    change_vmcs_field(&stack);
-    enter_the_matrix(&stack);
 }

@@ -1,8 +1,9 @@
+#include <linux/kprobes.h>
+
 #include "hypervisor.h"
 #include "exit_reason.h"
 #include "macros.h"
 #include "utils.h"
-#include <linux/kprobes.h>
 
 extern void read_virt_mem(struct __vmm_stack_t *stack);
 extern void write_virt_mem(struct __vmm_stack_t *stack);
@@ -14,6 +15,8 @@ extern void write_phys_mem(struct __vmm_stack_t *stack);
 extern void stop_execution(struct __vmm_stack_t *stack);
 extern void change_vmcs_field(struct __vmm_stack_t *stack);
 extern void vm_exit_entry(void);
+extern void vm_exit_handler(struct __vmm_stack_t *stack);
+extern int hypervisor_init(void);
 
 #define INT3() asm volatile("int3\n\t");
 #define GUEST_STACK_SIZE 64
@@ -347,7 +350,7 @@ static void ReadAllRegs(struct __vmm_stack_t *stack)
     pr_info("ExitReason = %x", vmExit_reason());
 }
 
-static void vm_exit_handler(struct __vmm_stack_t *stack)
+extern void vm_exit_handler(struct __vmm_stack_t *stack)
 {
     pr_info("Handling vm exit");
     ReadAllRegs(stack);
@@ -824,7 +827,7 @@ static bool initVmLaunchProcess(void)
     return true;
 }
 
-static int hypervisor_init(void)
+extern int hypervisor_init(void)
 {
 
     set_memory_rw_cust = (set_memory_rw_fn)GetProcAddr("set_memory_rw");

@@ -1,5 +1,5 @@
 obj-m := blackpill.o
-blackpill-y := src/lib.o src/hypervisor/capabilities.o src/hypervisor/hypervisor.o
+blackpill-y := src/lib.o src/hypervisor/hypercapa.o src/hypervisor/hypervisor.o
 
 CC = clang
 ARCH ?= x86_64
@@ -17,7 +17,7 @@ INSTALL_MOD_PATH ?= $(VM)/rootfs
 
 default:
 	@echo "[+] Compiling module"
-	$(MAKE) LLVM=1 ARCH=$(ARCH) -C $(KDIR) M=$(MDIR) modules
+	$(MAKE) LLVM=1 ARCH=$(ARCH) -C $(KDIR) M=$(MDIR) modules EXTRA_CFLAGS="-Wno-unused-function"
 
 first-time-setup:
 	@echo "[+] Configuring kernel"

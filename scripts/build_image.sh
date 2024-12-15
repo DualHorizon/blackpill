@@ -78,9 +78,15 @@ docker run -it --rm --volume "$ROOTFS_DIR:/rootfs" alpine sh -c '
     sed -i "s/_type}/_type} --autologin root/g" /etc/init.d/agetty.ttyS0;
     rc-update add root default;
     echo "root:" | chpasswd;
+    echo "user:password" | chpasswd;
     rc-update add devfs boot;
     rc-update add procfs boot;
     rc-update add sysfs boot;
+    rc-service networking restart;
+    echo -e "auto lo\niface lo inet loopback\n\nauto eth0\niface eth0 inet dhcp" > /etc/network/interfaces;
+    rc-update add dhcpcd;
+    rc-service dhcpcd restart;
+    ip link set eth0 up;
     for d in bin etc lib root sbin usr; do tar c "/$d" | tar x -C /rootfs; done;
     for dir in dev proc run sys var; do mkdir -p /rootfs/${dir}; done;
     echo 7 | tee /proc/sys/kernel/printk;

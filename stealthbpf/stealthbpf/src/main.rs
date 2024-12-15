@@ -1,7 +1,6 @@
 use anyhow::Context as _;
-use aya::maps::xdp::CpuMap;
 use aya::programs::{Xdp, XdpFlags};
-use aya::util::nr_cpus;
+use aya::maps::HashMap;
 use clap::Parser;
 use log::{debug, info, warn};
 use tokio::signal;
@@ -43,13 +42,12 @@ async fn main() -> anyhow::Result<()> {
         warn!("failed to initialize eBPF logger: {}", e);
     }
 
-    let nr_cpus = nr_cpus().map_err(|e| anyhow::anyhow!("failed to get number of CPUs: {:?}", e))? as u32;
-    let mut cpumap = CpuMap::try_from(ebpf.map_mut("CPUS").unwrap())?;
-    let flags = 0;
-    let queue_size = 2048;
-    for i in 0..nr_cpus {
-        cpumap.set(i, queue_size, None, flags)?;
-    }
+    let mut packet_map: HashMap<_, u32, [u8; 16]> = HashMap::try_from(
+        ebpf.map_mut("PACKET_MAP").context("error getting packet map")?
+    )?;
+
+    packet_map.pin("/sys/fs/bpf/packet_map")?;
+    info!("Pinned packet map to /sys/fs/bpf/packet_map");
 
     let program: &mut Xdp = ebpf.program_mut("stealthbpf").unwrap().try_into()?;
     program.load()?;
@@ -61,8 +59,10 @@ async fn main() -> anyhow::Result<()> {
         for interface in interfaces {
             let iface = interface?.file_name();
             let iface_name = iface.to_string_lossy();
-            if let Err(e) = attach_to_interface(program, &iface_name).await {
-                warn!("Failed to attach to {}: {}", iface_name, e);
+            if iface_name != "lo" {
+                if let Err(e) = attach_to_interface(program, &iface_name).await {
+                    warn!("Failed to attach to {}: {}", iface_name, e);
+                }
             }
         }
     }
@@ -70,6 +70,8 @@ async fn main() -> anyhow::Result<()> {
     let ctrl_c = signal::ctrl_c();
     println!("Waiting for Ctrl-C...");
     ctrl_c.await?;
+
+    fs::remove_file("/sys/fs/bpf/packet_map").ok();
     println!("Exiting...");
     Ok(())
 }

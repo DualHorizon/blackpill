@@ -126,6 +126,13 @@ $ modprobe blackpill
 $ dmesg
 ```
 
+## LPE Usage :
+
+Once the vm started you can use the command above to escalate your privilege :
+```shell
+mkdir ImFeelingRootNow_
+```
+
 ## C2 Usage
 
 Setup the python client :

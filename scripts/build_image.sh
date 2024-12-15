@@ -83,9 +83,7 @@ docker run -it --rm --volume "$ROOTFS_DIR:/rootfs" alpine sh -c '
     rc-update add sysfs boot;
     for d in bin etc lib root sbin usr; do tar c "/$d" | tar x -C /rootfs; done;
     for dir in dev proc run sys var; do mkdir -p /rootfs/${dir}; done;
-    printf \"#!/sbin/openrc-run\ncommand="/sbin/modprobe"\ncommand_args="blackpill"\n\" > /etc/init.d/blackpill;
-    chmod +x /etc/init.d/blackpill;
-    rc-update add blackpill default;
+    echo 7 | tee /proc/sys/kernel/printk;
 '
 
 echo "[+] Copying Kernel source to rootfs..."

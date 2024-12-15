@@ -10,20 +10,20 @@
 
 ![Rootkit simple architecture schema](assets/blackpill-rootkit-overview.drawio.png)
 
-- Hides itself from the modules list
-
 ## Development environment
 
 ### Description
 
 Multiple steps needs to be done before compiling our rootkit. The development environment is composed of :
+
 - a simple Alpine Linux image providing essential tools
 - a custom compiled kernel with Rust activated
 - a simple QEMU virtual machine accelerated by KVM
 
 Start by cloning the repository and its shallow submodules :
+
 ```shell
-$ git clone git@github.com:DualHorizon/blackpill.git --recursive --depth 1
+git clone git@github.com:DualHorizon/blackpill.git --recursive --depth 1
 ```
 
 ### Important dependencies
@@ -31,7 +31,7 @@ $ git clone git@github.com:DualHorizon/blackpill.git --recursive --depth 1
 On an arch-based distribution :
 
 ```shell
-$ sudo pacman -S qemu-base qemu-desktop docker grub
+sudo pacman -S qemu-base qemu-desktop docker grub
 ```
 
 ### Linux kernel
@@ -39,15 +39,15 @@ $ sudo pacman -S qemu-base qemu-desktop docker grub
 On an arch-based Linux distribution, install Rust and other dependencies :
 
 ```shell
-$ sudo pacman -S rust rust-src rust-bindgen
-$ sudo pacman -S clang lld llvm
+sudo pacman -S rust rust-src rust-bindgen
+sudo pacman -S clang lld llvm
 ```
 
 Then we'll need Rust sources and bindgen :
 
 ```shell
-$ rustup component add rust-src clippy rustfmt
-$ cargo install --locked bindgen-cli
+rustup component add rust-src clippy rustfmt
+cargo install --locked bindgen-cli
 ```
 
 Make sure you can start compiling your kernel with Rust by running in folder `linux/` :
@@ -63,7 +63,7 @@ $ popd
 Launch the first time setup task which configures and compiles the kernel :
 
 ```shell
-$ make first-time-setup
+make first-time-setup
 ```
 
 > [!IMPORTANT]
@@ -74,13 +74,13 @@ $ make first-time-setup
 You can compile the Rust kernel module (out-of-tree) with :
 
 ```shell
-$ make
+make
 ```
 
 Launch the VM with :
 
 ```shell
-$ make vm
+make vm
 ```
 
 Inside the VM, you are auto logged in `root`. You can enable the module :
@@ -98,6 +98,7 @@ todo
 ## Credits
 
 Environment setup :
+
 - [Setting Up an Environment for Writing Linux Kernel Modules in Rust - The Linux Foundation](https://www.youtube.com/watch?v=tPs1uRqOnlk)
 - [Kernel config qemu-busybox-min.config patch](https://lore.kernel.org/rust-for-linux/20230609063118.24852-18-amiculas@cisco.com/)
 - [Rust out-of-tree module](https://github.com/Rust-for-Linux/rust-out-of-tree-module)

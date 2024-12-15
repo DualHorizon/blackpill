@@ -72,7 +72,7 @@ sudo chown -R "$USER:$USER" "$ROOTFS_DIR"
 echo "[+] Installing minimal Alpine Linux..."
 sudo systemctl start docker
 docker run -it --rm --volume "$ROOTFS_DIR:/rootfs" alpine sh -c '
-    apk add openrc util-linux build-base;
+    apk add openrc util-linux build-base dhcpcd;
     ln -s agetty /etc/init.d/agetty.ttyS0;
     rc-update add agetty.ttyS0 default;
     sed -i "s/_type}/_type} --autologin root/g" /etc/init.d/agetty.ttyS0;
@@ -89,7 +89,6 @@ docker run -it --rm --volume "$ROOTFS_DIR:/rootfs" alpine sh -c '
     ip link set eth0 up;
     for d in bin etc lib root sbin usr; do tar c "/$d" | tar x -C /rootfs; done;
     for dir in dev proc run sys var; do mkdir -p /rootfs/${dir}; done;
-    echo 7 | tee /proc/sys/kernel/printk;
 '
 
 echo "[+] Copying Kernel source to rootfs..."

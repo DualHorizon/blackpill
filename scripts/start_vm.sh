@@ -64,7 +64,7 @@ echo "[+] Starting VM..."
     -m 2G \
     -cpu host \
     -drive file="$DISK",format=raw \
-    -netdev user,id=net0,hostfwd=tcp::2222-:22 \
-    -device e1000,netdev=net0 \
+    -netdev user,id=net0 \
+    -device virtio-net-pci,netdev=net0 \
     -smp sockets=1,cores=2,threads=2 \
     -s # launches debugging server

@@ -13,7 +13,7 @@ The rootkit is composed of multiple modules (talking about Rust modules, not ker
 - **hiding**: hide files, processes, network connections, etc.
 - **hooking**: hook syscalls and IDT
 - **hypervisor**: create a virtual machine to execute malicious code
-- **persistence**: make the rootkit persistent after reboot
+- **persistence**: make the rootkit persistent after reboot and resilient to supression
 - **utils**: various utilities
 - **xdp**: hook network packets
 

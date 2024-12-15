@@ -56,25 +56,24 @@ To ensure stealth, the rootkit employs two primary anti-detection mechanisms:
 
 ### Hypervisor
 
-### 1. Initial System Configuration
-- Enable hardware virtualization extensions (Intel VT-x or AMD-V) in the BIOS/UEFI.
-- Configure the control registers (CR0, CR4, and IA32_EFER) to switch into VMX (Virtual Machine Extensions) or SVM (Secure Virtual Machine) mode.
+1. Initial System Configuration
+    - Enable hardware virtualization extensions (Intel VT-x or AMD-V) in the BIOS/UEFI.
+    - Configure the control registers (CR0, CR4, and IA32_EFER) to switch into VMX (Virtual Machine Extensions) or SVM (Secure Virtual Machine) mode.
 
-### 2. Entering VMX or SVM Mode
-- Initialize the virtualization-specific data structures (VMCS for Intel or VMCB for AMD).
-- Program the processor features, such as VM exits, to handle interactions between the guest and the host.
+2. Entering VMX or SVM Mode
+    - Initialize the virtualization-specific data structures (VMCS for Intel or VMCB for AMD).
+    - Program the processor features, such as VM exits, to handle interactions between the guest and the host.
 
-### 3. Managing Transitions Between Host and Guest
-- Configure the entry and exit points for virtual machines (VM entry/exit).
-- Implement logic to intercept sensitive system calls made by the guest and analyze their effects.
+3. Managing Transitions Between Host and Guest
+    - Configure the entry and exit points for virtual machines (VM entry/exit).
+    - Implement logic to intercept sensitive system calls made by the guest and analyze their effects.
 
-### 4. Guest System Creation
-- Allocate memory for the guest and initialize its resources (registers, stack, etc.).
+4. Guest System Creation
+    - Allocate memory for the guest and initialize its resources (registers, stack, etc.).
 
-### 5. Communication
-- Use communication channels between the rootkit and the hypervisor to transmit commands or data.
+5. Communication
+    - Use communication channels between the rootkit and the hypervisor to transmit commands or data.
 
----
 
 Follow these steps to implement a basic hypervisor, ensuring that hardware configurations and system resources are properly managed for a secure and functional environment.
 

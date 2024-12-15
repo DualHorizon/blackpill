@@ -9,10 +9,8 @@
 //! be in the `sys_kill` module. This is to keep the code organized and maintainable.
 //! Create a copy of the `_template.rs` file and add your syscall handler there.
 
-mod sys_execve;
-mod sys_kill;
-mod sys_mkdir;
 mod sys_filldir64;
+mod sys_mkdir;
 
 use kernel::bindings::pt_regs;
 use kernel::{bindings, prelude::*};
@@ -131,8 +129,6 @@ pub(crate) fn print_all_regs(regs: *mut pt_regs) {
 pub(crate) fn hook_syscalls() {
     pr_info!("Hooking syscalls...\n");
 
-    sys_kill::sys_hook();
-    sys_execve::sys_hook();
     sys_mkdir::sys_hook();
     sys_filldir64::sys_hook();
 }

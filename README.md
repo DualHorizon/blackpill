@@ -8,7 +8,42 @@
 
 ## Features
 
+The rootkit is composed of multiple modules (talking about Rust modules, not kernel modules) :
+
+- **hiding**: hide files, processes, network connections, etc.
+- **hooking**: hook syscalls and IDT
+- **hypervisor**: create a virtual machine to execute malicious code
+- **persistence**: make the rootkit persistent after reboot
+- **utils**: various utilities
+- **xdp**: hook network packets
+
+The architecture looks as the following :
+
 ![Rootkit simple architecture schema](assets/blackpill-rootkit-overview.drawio.png)
+
+And here is how malicious code is executed from C2 to VM guest :
+
+![Rootkit code execution sequence diagram](assets/blackpill-sequence-diagram.drawio.png)
+
+C2 sends crafted assembled x86_64 mnemonics to the rootkit, which then sends it to the VM guest to execute it. The VM guest is isolated from the host and can be used to execute malicious code.
+
+Kernel do not see incoming malicous packets as they are filtered by the eBPF XDP hook and sent to the LKM module, and outgoing packets are filtered by the eBPF TC program.
+
+### Hooking
+
+describe hooked syscalls
+
+### Hiding
+
+describe hidden files, processes, network connections, etc.
+
+### Hypervisor
+
+describe hypervisor
+
+### Persistence
+
+describe persistence
 
 ## Development environment
 

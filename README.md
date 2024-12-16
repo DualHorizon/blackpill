@@ -33,7 +33,7 @@ Kernel do not see incoming malicous packets as they are filtered by the eBPF XDP
 
 Hooking is a fundamental capability of the rootkit, implemented using `kprobes` in the Linux kernel. This technique intercepts and redirects the execution of system functions to monitor or modify their behavior. In the context of this rootkit, `kprobes` provides a powerful mechanism to interact with kernel functions without altering the source code directly.
 
-### Hiding
+### Defense Evasion
 
 To ensure stealth, the rootkit employs two primary anti-detection mechanisms:
 

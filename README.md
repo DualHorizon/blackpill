@@ -28,6 +28,11 @@ C2 sends crafted assembled x86_64 mnemonics to the rootkit, which then sends it 
 
 Kernel do not see incoming malicous packets as they are filtered by the eBPF XDP program and sent to the LKM module, and outgoing packets are modified by the eBPF TC program.
 
+> [!IMPORTANT]  
+> This project is still a work-in-progress.
+> Not all features are working! <br>
+> Feel free to submit issues or pull requests.
+
 ### Hooking
 
 Hooking is a fundamental capability of the rootkit, implemented using `kprobes` in the Linux kernel. This technique intercepts and redirects the execution of system functions to monitor or modify their behavior. In the context of this rootkit, `kprobes` provides a powerful mechanism to interact with kernel functions without altering the source code directly.
